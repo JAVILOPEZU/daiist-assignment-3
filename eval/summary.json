@@ -1,0 +1,18 @@
+{
+  "questions": 32,
+  "outcomes": {
+    "correct": 21,
+    "wrong": 1,
+    "unsupported": 4,
+    "wrong refusal": 0,
+    "correct refusal": 5,
+    "answered unanswerable": 1
+  },
+  "citations_valid": 1.0,
+  "guardrail_fired": 10,
+  "avg_tokens": 4367,
+  "avg_seconds": 55.6,
+  "judge_vs_me": {
+    "graded_by_me": 0
+  }
+}
