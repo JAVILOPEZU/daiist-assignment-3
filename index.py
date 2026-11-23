@@ -75,13 +75,25 @@ def log(*args) -> None:
 
 # ---------- download & extract ----------
 
-def download(src: dict) -> Path:
+MIN_FILE_BYTES = 20_000  # every corpus file is far larger; an empty or blocked response is not
+
+
+def download(src: dict) -> Path | None:
+    """Local copy of a source, downloading it if needed. None if it can't be fetched:
+    the vectors already committed in index/ are kept and nothing is re-embedded."""
     path = CORPUS_DIR / src["file"]
-    if not path.exists():
+    if not path.exists() or path.stat().st_size < MIN_FILE_BYTES:
         CORPUS_DIR.mkdir(exist_ok=True)
         log(f"downloading {src['source']}")
-        r = httpx.get(src["url"], headers={"User-Agent": "Mozilla/5.0"}, follow_redirects=True, timeout=120)
-        r.raise_for_status()
+        try:
+            r = httpx.get(src["url"], headers={"User-Agent": "Mozilla/5.0"}, follow_redirects=True, timeout=120)
+            r.raise_for_status()
+        except httpx.HTTPError as e:
+            log(f"  could not download {src['source']} ({e}); keeping its vectors in index/")
+            return None
+        if len(r.content) < MIN_FILE_BYTES:
+            log(f"  {src['source']}: the site returned {len(r.content)} bytes; keeping its vectors in index/")
+            return None
         path.write_bytes(r.content)
     return path
 
@@ -254,6 +266,8 @@ def retrieve(query: str, design: str = CHOSEN_DESIGN, k: int = 5, query_vec: lis
 def main() -> None:
     for src in SOURCES:
         path = download(src)
+        if path is None:
+            continue
         for design in DESIGNS:
             chunks = chunk_file(path, src["source"], src["title"], design)
             words = sum(len(s["text"].split()) for s in extract(path))
