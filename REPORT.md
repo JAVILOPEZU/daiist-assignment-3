@@ -92,11 +92,77 @@ You research EU drone rules using only the `search` tool.
 - Keep it short: a direct answer in a few sentences or bullets.
 ```
 
-**Transcript from Claude Code** (subagent `corpus-researcher`, run from the repo folder):
+**Transcript from Claude Code** (CLI 2.1.330 in headless mode, `claude -p`, run on 23 November 2026 from a clean clone of this repo; the `corpus` server loaded from `.mcp.json`):
 
 ```text
-[paste the exported Claude Code conversation here]
+$ claude -p "Use the corpus-researcher subagent to answer this question: Do I need to register a 300 g drone to fly it in the open category?"
+  (Claude Code 2.1.330, model claude-opus-5-5; MCP server "corpus" from .mcp.json: connected)
+
+● Agent(subagent_type="corpus-researcher")
+  prompt: "Question: Do I need to register a 300 g drone to fly it in the open category (EU rules, Regulations 2019/947 and 2019/945)? …"
+  ⎿ mcp__corpus__search(query="UAS operator registration open category MTOM 250 g kinetic energy 80 J sensor personal data toy")
+  ⎿ mcp__corpus__search(query="operator registration number displayed on unmanned aircraft")
+  ⎿ mcp__corpus__search(query="C1 class remote pilot online training theoretical knowledge examination subcategory A1")
+     results for "UAS operator registration open category …": [1] Reg 2019/947, Article 14 (0.843); [2] Reg 2019/947, Article 14 (0.816); [3] Reg 2019/947, PART A UAS OPERATIONS IN THE ‘OPEN’ CATEGORY (0.816); [4] Reg 2019/947, ANNEX (0.804); [5] Reg 2019/947, Article 4 (0.797) (passage text omitted)
+     results for "operator registration number displayed o…": [1] Reg 2019/947, Article 14 (0.709); [2] Reg 2019/947, Article 14 (0.706); [3] Reg 2019/945, PART 2 Requirements for a class C1 Unmanned aircraft system (0.701); [4] Reg 2019/947, Article 14 (0.694); [5] Reg 2019/945, Article 40 (0.691) (passage text omitted)
+     results for "C1 class remote pilot online training th…": [1] Reg 2019/947, UAS.OPEN.020 UAS operations in subcategory A1 (0.819); [2] Reg 2019/947, UAS.OPEN.020 UAS operations in subcategory A1 (0.813); [3] Reg 2019/947, ANNEX (0.796); [4] Reg 2019/947, UAS.OPEN.030 UAS operations in subcategory A2 (0.782); [5] Reg 2019/947, PART A UAS OPERATIONS IN THE ‘OPEN’ CATEGORY (0.782) (passage text omitted)
+  ⎿ mcp__corpus__search(query="class C0 MTOM less than 250 g; class C1 MTOM less than 900 g; subcategory A3 remote pilot training")
+     results for "class C0 MTOM less than 250 g; class C1 …": [1] Reg 2019/947, UAS.OPEN.040 UAS operations in subcategory A3 (0.852); [2] Reg 2019/947, UAS.OPEN.020 UAS operations in subcategory A1 (0.848); [3] Reg 2019/947, UAS.OPEN.040 UAS operations in subcategory A3 (0.837); [4] Reg 2019/945, PART 4 Requirements for a class C3 Unmanned aircraft system (0.837); [5] Reg 2019/947, UAS.OPEN.020 UAS operations in subcategory A1 (0.832) (passage text omitted)
+  ⎿ corpus-researcher report:
+    **Yes. A 300 g drone flown in the open category requires you, the operator, to register.** It is over the 250 g threshold, so its class, its camera and any other feature do not change that.
+
+    **(1) The Article 14 registration triggers**
+    - In the open category, UAS operators must register when they fly an unmanned aircraft that (i) has an MTOM of 250 g or more, or could transfer more than 80 J of kinetic energy to a person on impact, or (ii) "is equipped with a sensor able to capture personal data, unless it complies with Directive 2009/48/EC" [Reg 2019/947, Article 14].
+    - Any drone flown in the specific category triggers registration, whatever its mass [Reg 2019/947, Article 14].
+    - Some of the terms you asked about are not in the returned text:
+      - The Article 14 passage names only "Directive 2009/48/EC". It does not use the word "toy".
+      - It says "personal data" but does not mention GDPR.
+    - A 300 g drone already meets criterion (i), so the camera and toy questions don't affect it.
+
+    **(2) Operator vs. drone, and certified drones**
+    - Registration is for the operator, not the aircraft. Operators register in the Member State where they live (natural persons) or have their principal place of business (legal persons). An operator cannot be registered in more than one Member State at a time [Reg 2019/947, Article 14].
+    - Member States issue a unique registration number for operators and for any UAS that requires registration [Reg 2019/947, Article 14].
+    - Drones whose design is subject to certification are the exception. Their owner must register the aircraft itself, with a nationality and registration mark that follows ICAO Annex 7 [Reg 2019/947, Article 14].
+
+    **(3) Does the class matter for a 300 g drone?**
+    - No. Article 14 bases registration on mass, energy and sensor, not on class [Reg 2019/947, Article 14].
+    - Class does decide which subcategory you can fly in. A1 is open to C0 and C1 drones (C1 needs active, up-to-date direct remote ID and geo-awareness). Privately built drones only qualify for A1 if they are under 250 g and slower than 19 m/s [Reg 2019/947, UAS.OPEN.020 UAS operations in subcategory A1].
+    - The returned passages do not give the C0 and C1 mass limits (under 250 g and under 900 g), so I can't confirm them from the corpus.
+
+    **(4) Related obligations**
+    - **Showing the number:** operators must display their registration number on every aircraft that meets the Article 14(5) conditions [Reg 2019/947, Article 14].
+    - **Remote ID:** a C1 drone must let you upload the operator registration number and must broadcast it during flight [Reg 2019/945, PART 2 Requirements for a class C1 Unmanned aircraft system].
+    - **Pilot competency, A1 with C1:** you need an online training course and an online theory exam. The exam has 40 multiple-choice questions and you need at least 75% to pass. It covers air safety, airspace restrictions, aviation regulation, human performance limitations, operational procedures, UAS general knowledge, privacy and data protection, insurance, and security [Reg 2019/947, UAS.OPEN.020 UAS operations in subcategory A1].
+    - **Pilot competency, A3:** the same online training and exam, plus familiarity with the manufacturer's instructions [Reg 2019/947, UAS.OPEN.040 UAS operations in subcategory A3].
+    - **A2:** this also requires a certificate of remote pilot competency [Reg 2019/947, UAS.OPEN.030 UAS operations in subcategory A2].
+
+    **Not covered by the corpus:** the exact C0 and C1 class mass limits, any "toy" wording, any mention of GDPR, and national procedures or fees for registering.
+
+● Claude Code answer:
+  **Yes. You have to register to fly a 300 g drone in the open category.** I checked this with the corpus-researcher agent against EU Regulations 2019/947 and 2019/945.
+
+  **Why:** Under Article 14 of Reg. 2019/947, you must register if your drone:
+  - weighs 250 g or more (maximum take-off mass), or could hit a person with more than 80 J of energy, **or**
+  - has a sensor that can capture personal data, such as a camera, unless it meets the EU Toy Safety Directive (2009/48/EC).
+
+  A 300 g drone is over the 250 g limit, so you must register whether or not it has a camera.
+
+  **Key points:**
+  - **You register, not the drone.** You register as the *operator* in the EU country where you live, or where your business is based, and only in one country at a time. You get one registration number that covers all your drones. The exception is drones whose design has to be certified, which are registered as aircraft.
+  - **Put your number on the drone.** It must be shown on every drone that needs registration. If the drone is class C1, you also upload the number so the drone broadcasts it in flight (remote ID).
+  - **The drone's class decides where you can fly, not whether you register.**
+    - A C1 drone can fly in subcategory A1.
+    - A home-built drone can only fly in A1 if it is under 250 g and slower than 19 m/s.
+  - **You also need pilot training.**
+    - For A1 (with a C1 drone) or A3: an online course and an online exam with 40 multiple-choice questions, pass mark 75%.
+    - For A2: you also need a certificate of remote pilot competency.
+
+  **Not in the regulations:** how to register and what it costs. That depends on your country's aviation authority, for example AESA in Spain. The searched text also didn't give the exact C0 and C1 weight limits.
+
+  (2 turns, 28.7 s, $0.49 of Claude usage; the subagent made 4 search calls)
 ```
+
+The subagent made 4 searches, although its instructions allow at most 3. In Claude Code that limit is only an instruction, while `agent.py` enforces it with middleware. The subagent's report cites the regulation for each rule and lists what the corpus does not cover. The main session's closing answer adds two details that are not in the passages ("such as a camera" and "AESA in Spain").
 
 ## Adding a document
 
