@@ -4,8 +4,6 @@
 - **Student ID**: 18633
 - **Group**: BBADBA 5B
 
-> Draft note: every number below comes from the files in `eval/` and `index/`. Sections marked **TO WRITE (Javier)** need my own analysis or decisions. Delete these notes before submitting.
-
 ## Use case
 
 Drone pilots and operators in the EU ask what the EU rules allow before they fly, buy or register a drone: height and distance limits, which subcategory (A1/A2/A3) and class (C0–C6) applies, registration, pilot competency and authorisations. They act on the answer directly, by flying, buying a drone or registering.
@@ -52,7 +50,7 @@ Examples:
 - *Multi* (q21): "I fly a C2 drone in A2: how close can I get to people with low speed mode, and how fast can it go in that mode?" Expected answer: `Reg 2019/947 UAS.OPEN.030` plus `Reg 2019/945 PART 3`, down to 5 m, with low-speed mode limited to 3 m/s.
 - *Unanswerable* (q27): "How much does it cost to register as a UAS operator in Spain?" Fees are set nationally and are not in the corpus.
 
-> **TO WRITE (Javier):** how I wrote the questions (from which documents, before tuning anything, how I chose the unanswerable ones so they stay close to the topic).
+I wrote the 32 questions myself, working from a summary of the most important regulations. I covered the most restrictive topics and the ones pilots deal with daily. The unanswerable questions stay close to the topic: national fees, fines, UK rules, wind limits, U-space services and authorisation deadlines.
 
 ## Retrieval
 
@@ -154,9 +152,8 @@ Citations were valid in 100% of answers.
 | *supported* | **85%** (17 / 20) |
 
 The three disagreements are q07, q08 and q10. I graded them *supported*. The judge graded them *unsupported* because of the closing sentence naming the corpus versions, which comes from AGENTS.md rule 6 rather than from a retrieved passage.
-> **TO WRITE (Javier):** one or two sentences on why I disagree with the judge there, and what that says about trusting the judge.
 
-> **TO WRITE (Javier):** my reading of these results, including that 3 of the 4 "unsupported" answers (q07, q08, q10) were flagged only for the version sentence added by AGENTS.md rule 6, and the 4th (q21) mainly for it too. I chose to keep rule 6 and the judge rubric unchanged; explain why.
+Three of the four "unsupported" answers (q07, q08, q10) were flagged only for the version sentence that AGENTS.md rule 6 adds, and the fourth (q21) mainly for it. I kept rule 6, the judge rubric and the strict refusal check unchanged. This project aims at explainability rather than accuracy, and strict rules that produce both positive and negative cases explain the system better than rules modified until every case is positive.
 
 ## Failures
 
@@ -182,7 +179,7 @@ What each failure shows:
 - **q26:** the agent searched once. `UAS.OPEN.050` (people taking part must be informed and agree) was never retrieved, and the agent said the rules don't cover that part.
 - **q32:** the agent replied "The corpus does not specify a set number of days…", but the code only counts answers starting "The corpus does not cover" as refusals.
 
-> **TO WRITE (Javier):** what to fix first, and why.
+**What to fix first:** the answers don't define key terms before giving the evidence. In my own grading I noted that q02 should say what the open category is and q03 should define a toy. I would fix that first.
 
 ## Decision
 
@@ -195,12 +192,12 @@ What each failure shows:
 
 The mean latency is inflated by free-tier rate-limit waits: q04 took 802 s and q10 took 237 s. The median is the typical case.
 
-> **TO WRITE (Javier):** would I let pilots rely on it, for what kind of question, and with which safeguard?
+**Would I let users rely on it?** Yes, I would let pilots rely on it. They have the knowledge to cover the gap the assistant can't: interpreting ambiguous terms. That knowledge is the safeguard.
 
 ## AI use
 
-> **TO WRITE (Javier):** what I used AI for when writing the code (tools, which parts).
+AI wrote the code.
 
-Claude (Anthropic) was also used to review the repository, to build a web page where I entered my own grades and failure causes, to make `evaluate.py` keep the hand-filled `cause` column when it re-runs, and to draft the factual parts of this report from the files in `eval/` and `index/`.
+Claude (Anthropic) was also used to review the repository, to build a grading page and to walk me through the answers one by one (with neutral summaries of each answer and its passages) while I gave my own grades and failure causes, to make `evaluate.py` keep the hand-filled `cause` column when it re-runs, and to draft the factual parts of this report from the files in `eval/` and `index/`. Claude also turned my notes for the analysis sections (test set, evaluation, failures, decision) into sentences.
 
-> **TO WRITE (Javier):** confirm which decisions, the test set, the grades and the analysis are mine, as the brief requires.
+I wrote the test set myself and graded 20 answers myself. I chose the cause of each failure, the decision to keep rule 6 and the strict checks, what to fix first and the ship decision.
