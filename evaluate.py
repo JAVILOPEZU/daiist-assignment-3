@@ -6,9 +6,15 @@ Evaluation (`main.py evaluate`). Writes everything to eval/.
 2. Agent on every question (cached, so reruns are cheap)    -> eval/answers.jsonl
 3. Code checks: citations valid, refusals right or wrong
 4. LLM judge with a rubric, retrieved text as evidence      -> eval/judge.jsonl
-5. Agreement with my grades in eval/human_labels.csv
+5. Agreement with my grades in eval/human_labels.csv, and a grading sheet
+   for the answers I haven't graded                         -> eval/grading_sheet.md
 6. Optional: add a document and re-ask one unanswerable question -> eval/add_document_demo.md
-Totals go to eval/summary.json; failed questions to eval/failures.csv.
+Totals and the analysis (rates with 95% intervals, refusals, cost...) go to eval/summary.json;
+failed questions to eval/failures.csv. Nothing calls Gemini when every answer, verdict and
+query vector is already cached.
+
+Options: `--rejudge` judges every answer again (eval/judge_rerun.jsonl) to measure how stable
+the judge is; EVAL_DIR=eval/v2 writes a complete second run into another folder.
 """
 
 import asyncio
