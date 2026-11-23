@@ -80,6 +80,46 @@ def test_guardrail_patterns():
         == ["no citations (refusal without the exact phrase)"]
 
 
+def fake_judge_client(monkeypatch, outcomes):
+    """index.client() whose generate_content raises or answers from `outcomes`, in order."""
+    calls = []
+
+    class Models:
+        def generate_content(self, **kw):
+            calls.append(kw)
+            out = outcomes[len(calls) - 1]
+            if isinstance(out, Exception):
+                raise out
+            return type("Response", (), {"text": out})()
+
+    monkeypatch.setattr(evaluate.index, "client", lambda: type("Client", (), {"models": Models()})())
+    monkeypatch.setattr(evaluate.time, "sleep", lambda seconds: None)
+    return calls
+
+
+def test_judge_retries_overload_and_dropped_connections(monkeypatch):
+    import httpx
+    from google.genai import errors
+
+    overloaded = errors.ServerError(503, {"error": {"code": 503, "message": "high demand", "status": "UNAVAILABLE"}})
+    calls = fake_judge_client(monkeypatch, [httpx.RemoteProtocolError("Server disconnected"), overloaded,
+                                            '{"correct": 1, "supported": 0, "reason": "r"}'])
+    got = evaluate.judge(question(id="q1"), {"retrieved_text": "passages", "answer": "an answer"})
+    assert got == {"id": "q1", "correct": 1, "supported": 0, "reason": "r"} and len(calls) == 3
+    assert calls[0]["config"].temperature == 0
+
+
+def test_judge_does_not_retry_a_bad_request(monkeypatch):
+    import pytest
+    from google.genai import errors
+
+    bad = errors.ClientError(400, {"error": {"code": 400, "message": "bad", "status": "INVALID_ARGUMENT"}})
+    calls = fake_judge_client(monkeypatch, [bad, '{"correct": 1, "supported": 1}'])
+    with pytest.raises(errors.ClientError):
+        evaluate.judge(question(id="q1"), {"retrieved_text": "", "answer": "a"})
+    assert len(calls) == 1
+
+
 def test_agent_retrieval_counts_any_and_all_expected_passages():
     qs = [question(id="q1", expected_source="Reg 2019/947", expected_location="UAS.OPEN.020;UAS.OPEN.070", kind="multi"),
           question(id="q2", expected_source="Reg 2019/945", expected_location="PART 3"),

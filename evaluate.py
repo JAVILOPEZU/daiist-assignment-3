@@ -29,6 +29,7 @@ import time
 from collections import Counter
 from pathlib import Path
 
+import httpx
 from google.genai import errors, types
 
 import agent
@@ -217,8 +218,9 @@ def judge(q: dict, a: dict) -> dict:
                 model=agent.MODEL, contents=prompt,
                 config=types.GenerateContentConfig(temperature=0, response_mime_type="application/json"))
             break
-        except (errors.ServerError, errors.ClientError) as e:
-            if e.code not in (429, 503) or attempt == 9:
+        except (errors.ServerError, errors.ClientError, httpx.TransportError) as e:
+            # retry rate limits, "high demand" and dropped connections; anything else is a real error
+            if getattr(e, "code", 503) not in (429, 503) or attempt == 9:
                 raise
             time.sleep(min(10 * 2 ** attempt, 60))
     v = json.loads(res.text)
