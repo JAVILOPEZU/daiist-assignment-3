@@ -222,7 +222,7 @@ Citations were valid in 100% of answers.
 
 All 20 are single-passage questions. The three disagreements are q07, q08 and q10. I graded them *supported*. The judge graded them *unsupported* because of the closing sentence naming the corpus versions, which comes from AGENTS.md rule 6 rather than from a retrieved passage. In my grading I treat that sentence as a disclaimer required by rule 6, not as a factual claim, so it does not make an answer unsupported. I applied this to all 20 answers; the judge applies the rubric literally, but only to 4 of the 25 answers that contain the note.
 
-Three of the four "unsupported" answers (q07, q08, q10) were flagged only for the version sentence that AGENTS.md rule 6 adds, and so was the fourth (q21). I kept rule 6, the judge rubric and the strict refusal check unchanged. This project aims at explainability rather than accuracy, and strict rules that produce both positive and negative cases explain the system better than rules modified until every case is positive.
+Three of the four "unsupported" answers (q07, q08, q10) were flagged only for the version sentence that AGENTS.md rule 6 adds, and so was the fourth (q21). I kept rule 6, the judge rubric and the strict refusal check unchanged. The aim of the evaluation is to show how the system behaves, not to raise its score: strict rules that produce both positive and negative cases explain more than rules changed until every case passes.
 
 **Judge limitations:**
 - The judge is the same model as the agent (`gemini-3.1-flash-lite`), so it may favour answers written the way it writes (self-preference bias).
@@ -266,7 +266,7 @@ What each failure shows:
 
 The mean is pulled up by two outliers, most likely free-tier rate-limit waits: q04 (802 s) and q10 (237 s). The median is the typical case. Tokens are the agent's model tokens; the judge's are not logged. The evaluation run made 37 searches (38 requested, 1 blocked), each one query embedding.
 
-**Would I let users rely on it?** Yes, I would let pilots rely on it. They have the knowledge to cover the gap the assistant can't: interpreting ambiguous terms. That knowledge is the safeguard.
+**Would I let users rely on it?** Yes: as a way to find and read the EU rule that applies, not as a replacement for the pilot's judgement. On the 32 questions, 26 were handled correctly (21 correct answers and 5 correct refusals) and every citation pointed to a passage that was actually retrieved. The four "unsupported" answers were flagged only for the version note. The one real error was q26, which left out the consent rule for people taking part in A2; q32 is a test-question problem (see Failures). The safeguard is the pilot. They have the knowledge the assistant lacks to interpret ambiguous terms, and each answer cites the article they can open and check before flying.
 
 ## AI use
 
@@ -274,6 +274,6 @@ AI wrote the code.
 
 Claude (Anthropic) was also used to review the repository, to build a grading page and to walk me through the answers one by one (with neutral summaries of each answer and its passages) while I gave my own grades and failure causes, to make `evaluate.py` keep the hand-filled `cause` column when it re-runs, and to draft the factual parts of this report from the files in `eval/` and `index/`. Claude also turned my notes for the analysis sections (test set, evaluation, failures, decision) into sentences.
 
-In a final review, Claude also added the `multi_all@k` metric to `evaluate.py`, reusing the saved query vectors. It made `index.py` skip a source it can't download instead of crashing. It re-ran `main.py index` and `main.py evaluate` with no new embeddings or judge calls, and ran `check.py` on a fresh clone, which passed. It corrected facts in this report (word counts, call limits, judge scope and limitations, the q26 and q32 evidence) and built a second blind grading sheet for q21–q32.
+In a final review, Claude also added the `multi_all@k` metric to `evaluate.py`, reusing the saved query vectors. It made `index.py` skip a source it can't download instead of crashing. It re-ran `main.py index` and `main.py evaluate` with no new embeddings or judge calls, and ran `check.py` on a fresh clone, which passed. It corrected facts in this report (word counts, call limits, judge scope and limitations, the q26 and q32 evidence) and built a second blind grading sheet for q21–q32. At my request it produced the subagent transcript by running the Claude Code CLI on a clean clone of this repo with my Gemini key. It also rewrote the ship decision and the evaluation framing from my earlier notes in this chat, so they agree with the use case.
 
 I wrote the test set myself and graded 20 answers myself. I chose the cause of each failure, the decision to keep rule 6 and the strict checks, what to fix first and the ship decision.
