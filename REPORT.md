@@ -102,7 +102,7 @@ in an area where the remote pilot reasonably expects that no uninvolved person w
 industrial or recreational areas; …
 ```
 
-From v2 on (section 9), the same passage starts with the citation to copy and the version, so the model no longer has a passage number to cite and the version note is in the retrieved text:
+From v2 on (section 9), the same passage starts with the citation to copy and the version. The only bracket the model sees is the citation itself, not a passage number, and the version note is in the retrieved text:
 
 ```text
 Passage 3 (score 0.781). Cite as: [Reg 2019/947, UAS.OPEN.040 UAS operations in subcategory A3]. Version: consolidated text of 4 April 2022.
@@ -221,11 +221,11 @@ Why the 10 first drafts failed, from the notes in `eval/answers.jsonl` (q17 had 
 | Two locations after one source | 1 (q28) |
 | No citation at all: a refusal that didn't start with the exact phrase | 2 (q29, q31) |
 
-Seven of the 11 problems are about the citation's format, not its content: two citations in one bracket, the passage number as the source, two locations after one source. The cheapest prevention is in the search output rather than in the prompt: start each passage with the exact citation to copy (`Cite as: [source, location]`) instead of a bare number, and let the check split `[A, x; B, y]` into two citations.
+Seven of the 11 problems are about the citation's format, not its content: two citations in one bracket, the passage number as the source, two locations after one source. The cheapest prevention is in the search output rather than in the prompt: start each passage with the exact citation to copy (`Cite as: [source, location]`) instead of a bare number, and let the check split `[A, x; B, y]` into two citations. v2 does both (section 9), and the check did not fire once in its 32 runs.
 
 ## 8. Evaluation
 
-The agent answered all 32 questions (`eval/answers.jsonl`).
+This section reports the v1 run (`eval/`), which my grades refer to; section 9 compares it with v2. The agent answered all 32 questions (`eval/answers.jsonl`).
 
 **Code checks:**
 - *refused*: the answer starts with "The corpus does not cover";
@@ -331,7 +331,7 @@ The answers don't define key terms before giving the evidence. In my own grading
 ### v2: testing fixes for the failures in the table
 
 After this analysis, a second version targeted the failure modes in the table, keeping the test set, the model, rule 6, the judge rubric and the strict refusal check unchanged (commit `99dfbf4`, details in `eval/v2/README.md`):
-- `search` starts each passage with the citation to copy and the document's version (section 6), so the version note is in the retrieved text and no passage number is offered as a source;
+- `search` starts each passage with the citation to copy and the document's version (section 6), so the version note is in the retrieved text and the only bracket in each header is the citation, not a passage number;
 - AGENTS.md asks for another search when a multi-part question isn't fully covered, and for one citation per bracket;
 - the citation check splits `[A, x; B, y]` and checks each citation.
 
@@ -412,7 +412,7 @@ Which run produced which numbers:
 | Retrieval tables (`eval/retrieval.csv`) | `main.py evaluate` from the saved query vectors and `index/` | the submitted commit, offline |
 | Outcomes, rates and intervals, kappa, refusal and version-note counts, guardrail patterns, cost (`eval/summary.json`, `eval/failures.csv`) | `main.py evaluate` from the cached v1 results and `eval/human_labels.csv` | the submitted commit, offline |
 | My grades and notes (`eval/human_labels.csv`) and failure causes | me | commits `0b00c9a` and `525a3a0` |
-| Second judge pass (`eval/judge_rerun.jsonl`), `judge_stability` in `eval/summary.json` | `evaluate.py --rejudge`, same rubric and prompt as v1, on 23 November 2026 | commit `2edbfbc` |
+| Second judge pass (`eval/judge_rerun.jsonl`), `judge_stability` in `eval/summary.json` | `evaluate.py --rejudge`, same rubric and prompt as v1, on 23 November 2026 | judge prompt and rubric of `08f7fe1`, retry settings of `2edbfbc` |
 | Judge audit (`eval/judge_audit.md`) | Claude, reading each verdict against its evidence | commit `1651be2` |
 | v2 answers and verdicts (`eval/v2/answers.jsonl`, `eval/v2/judge.jsonl`) | `EVAL_DIR=eval/v2` run of `evaluate.py` on 23 November 2026, on the three corpus documents | agent at commit `c2d0ff7` |
 | v2 summary (`eval/v2/summary.json`, `failures.csv`, `retrieval.csv`) | the same command, from the cached v2 results | the submitted commit, offline |
@@ -427,7 +427,7 @@ AI wrote the code.
 Claude (Anthropic) was also used to review the repository, to build a grading page and to walk me through the answers one by one (with neutral summaries of each answer and its passages) while I gave my own grades and failure causes, to make `evaluate.py` keep the hand-filled `cause` column when it re-runs, and to draft the factual parts of this report from the files in `eval/` and `index/`. Claude also turned my notes for the analysis sections (test set, evaluation, failures, decision) into sentences. At my request it produced the subagent transcript by running the Claude Code CLI on a clean clone of this repo with my Gemini key, and it rewrote the ship decision and the evaluation framing from my earlier notes, so they agree with the use case.
 
 In a final review pass, Claude:
-- added all@k, MRR@5 and per-kind rows to the retrieval evaluation, and tested BM25 and a BM25+dense hybrid as further designs, all from the saved vectors;
+- added all@k, MRR@5 and per-kind rows to the retrieval evaluation, made every design search the same three documents, and tested BM25 and a BM25+dense hybrid as further designs, all from the saved vectors;
 - added the analysis in `eval/summary.json` (outcomes by kind, Wilson intervals, Cohen's kappa, refusal and version-note counts, why the citation check fired, cost at paid-tier prices), and wrote the paragraphs of this report that present it;
 - audited the 26 judge verdicts (`eval/judge_audit.md`) and ran the judge a second time over all of them to measure its stability;
 - made `index.py` skip a source it can't download, made `search` errors say why, and added offline tests (`tests/`, run with pytest) and a linter (ruff);

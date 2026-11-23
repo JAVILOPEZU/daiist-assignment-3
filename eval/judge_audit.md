@@ -14,3 +14,16 @@ Method: every claim in each answer was checked against the retrieved passages, a
 | 4 | q15 | supported 1 | The answer glosses Article 20's "do not comply with Delegated Regulation (EU) 2019/945" as "without a class label". The gloss is reasonable but not in the passage. | Disputable, minor |
 
 No other verdict conflicts with its evidence. q26 (correct 0) is the only answer the judge marked wrong, and the audit agrees: the answer says the rules don't cover the second part of the question.
+
+## v2 run
+
+The same check on the six outcomes that changed in v2 (`eval/v2/judge.jsonl`; the other 20 judged answers keep the verdicts they had in v1, correct and supported):
+
+| Question | v1 → v2 | Finding |
+|---|---|---|
+| q07, q08, q10, q21 | unsupported → correct | Each search result now carries a `Version:` line (`consolidated text of 4 April 2022`, `consolidated text of 9 August 2020`, `Issue 1 of 9 October 2019`), so the closing version sentence is in the evidence. Every fact is cited to a retrieved passage. |
+| q26 | wrong → correct | The single search returned `UAS.OPEN.050`; the answer states point (7) (everyone involved is informed of the risks and explicitly agrees) and cites it. |
+| q32 | answered unanswerable → correct refusal | Graded in code: the answer now starts with "The corpus does not cover". The content is the same as in v1 ("without undue delay", `UAS.SPEC.040`). |
+
+q23 and q15 stay disputable for the same reasons as in v1. No changed verdict conflicts with its evidence.
+
