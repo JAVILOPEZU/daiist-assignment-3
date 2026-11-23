@@ -356,7 +356,7 @@ Three runs took over 100 s: q04 (802 s), q10 (237 s) and q03 (105 s). They are m
 
 ```bash
 uv sync                                    # Python 3.12 and the locked dependencies (uv.lock)
-echo "GEMINI_API_KEY=your-key" > .env      # server.py reads the key from .env, never from the shell
+cp .env.example .env                       # paste your key; server.py reads it from .env, not from the shell
 uv run python main.py index                # embeds only chunks without a saved vector: none, if the sources are unchanged
 uv run python main.py ask "your question"  # one agent run
 uv run python main.py evaluate             # rebuilds every file in eval/ from the cached results, no API calls
