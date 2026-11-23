@@ -54,7 +54,7 @@ Examples:
 
 I wrote the 32 questions myself, working from a summary of the most important regulations. I covered the most restrictive topics and the ones pilots deal with daily. The unanswerable questions stay close to the topic: national fees, fines, UK rules, wind limits, U-space services and authorisation deadlines.
 
-The test set has not changed since the first evaluation run (commit `08f7fe1`, 15 November 2026). Every later experiment in this report (the extra retrieval metrics, BM25 and the hybrid) used it as it is.
+The test set has not changed since the first evaluation run (commit `08f7fe1`, 15 November 2026). Every later experiment in this report (the extra retrieval metrics, BM25 and the hybrid, the second judge pass and v2) used it as it is.
 
 ## 5. Retrieval
 
@@ -90,9 +90,9 @@ For a multi question, hit@k counts a hit if *either* expected passage is retriev
 
 `server.py` loads the committed index and never re-embeds the corpus. Both tools run the code in `index.py`.
 
-**`search(query)`**: "Search the EU drone (UAS) rules: Regulation 2019/947 (how drones may be flown: open/specific/certified categories, A1/A2/A3 subcategories, operator registration, remote pilot competency, operational authorisations, standard scenarios), Regulation 2019/945 (drone classes C0-C6, manufacturer duties, product requirements, remote ID) and EASA's AMC/GM guidance to Part-UAS. Use it for any question about operating, buying or building a drone in the EU. Returns the 5 most relevant passages, each numbered with its source and location (article, UAS point or AMC/GM heading). Cite them as [source, location]."
+**`search(query)`**: "Search the EU drone (UAS) rules: Regulation 2019/947 (how drones may be flown: open/specific/certified categories, A1/A2/A3 subcategories, operator registration, remote pilot competency, operational authorisations, standard scenarios), Regulation 2019/945 (drone classes C0-C6, manufacturer duties, product requirements, remote ID) and EASA's AMC/GM guidance to Part-UAS. Use it for any question about operating, buying or building a drone in the EU. Returns the 5 most relevant passages. Each one starts with the exact citation to copy, [source, location] (article, UAS point or AMC/GM heading), and its document's version."
 
-One search result from the evaluation run (q05, third of five passages; the text is shortened with "…"):
+One search result as the v1 evaluation run received it (q05, third of five passages; the text is shortened with "…"):
 
 ```text
 [3] Reg 2019/947, UAS.OPEN.040 UAS operations in subcategory A3 (score 0.781)
@@ -100,6 +100,12 @@ UAS operations in subcategory A3 shall comply with all of the following conditio
 in an area where the remote pilot reasonably expects that no uninvolved person will be endangered …
 (2) be conducted at a safe horizontal distance of at least 150 metres from residential, commercial,
 industrial or recreational areas; …
+```
+
+From v2 on (section 9), the same passage starts with the citation to copy and the version, so the model no longer has a passage number to cite and the version note is in the retrieved text:
+
+```text
+Passage 3 (score 0.781). Cite as: [Reg 2019/947, UAS.OPEN.040 UAS operations in subcategory A3]. Version: consolidated text of 4 April 2022.
 ```
 
 If the search fails (no API key, network or quota), the tool returns an MCP error that says why, so the agent sees the cause instead of a crashed server.
@@ -197,13 +203,13 @@ The subagent made 4 searches, although its instructions allow at most 3. In Clau
 
 ### Harness and guardrails
 
-`agent.py` is a LangChain `create_agent` on `gemini-3.1-flash-lite` (temperature 0). It gets its tools from `server.py` over MCP and uses `AGENTS.md` as the system prompt. The rules are: search before answering (at most 3 searches); answer only from the passages; cite every claim as `[source, location]`; start with "The corpus does not cover this." when the passages don't answer; no national rules; mention the corpus version when dates matter; only add documents when the user asks with a path; be short.
+`agent.py` is a LangChain `create_agent` on `gemini-3.1-flash-lite` (temperature 0). It gets its tools from `server.py` over MCP and uses `AGENTS.md` as the system prompt. The rules are: search before answering (at most 3 searches, and since v2 again for any part of a multi-part question the passages don't cover); answer only from the passages; cite every claim as `[source, location]` (since v2: copy the text after "Cite as:", one citation per bracket); start with "The corpus does not cover this." when the passages don't answer; no national rules; mention the corpus version when dates matter; only add documents when the user asks with a path; be short.
 
 - **Approval step:** a `wrap_tool_call` middleware intercepts every `add_document` call and asks `Allow? [y/N]` in the terminal. With no terminal (evaluation, `check.py`) the answer is no, and the agent receives "The user did not approve adding this document."
 - **Call limits:** at most 6 model calls and 3 `search` calls per agent run. A 4th search is blocked and the agent gets "Tool call limit exceeded" (q23 requested 4; 3 ran). The citation retry is a second run with fresh limits.
-- **Extra guardrail, citation check:** every `[source, location]` in the answer must match a passage that `search` returned in *this* run, with the same source and a location that matches at a word boundary. If any citation fails, the agent is told which ones and gets one retry; if the retry still fails, the answer is replaced by a refusal.
+- **Extra guardrail, citation check:** every `[source, location]` in the answer must match a passage that `search` returned in *this* run, with the same source and a location that matches at a word boundary. If any citation fails, the agent is told which ones and gets one retry; if the retry still fails, the answer is replaced by a refusal. Since v2, a bracket that holds several citations separated by `;` is split and each one is checked.
 
-It fired on **10 of 32** questions. All 10 passed after the retry, and none had to be replaced by a refusal. Example, q25 ("My drone weighs 600 g. Do I need to register, and could it qualify as class C1?"): the first draft cited `[Reg 2019/947, Article 14(5)(a)(i)]` and `[Reg 2019/945, Part 2(1)]`. Those are finer than any location the index stores, so they could not be checked against a returned passage. The retry cited `[Reg 2019/947, Article 14]` and `[Reg 2019/945, PART 2 Requirements for a class C1 Unmanned aircraft system]`, which match.
+In the v1 run it fired on **10 of 32** questions. All 10 passed after the retry, and none had to be replaced by a refusal. Example, q25 ("My drone weighs 600 g. Do I need to register, and could it qualify as class C1?"): the first draft cited `[Reg 2019/947, Article 14(5)(a)(i)]` and `[Reg 2019/945, Part 2(1)]`. Those are finer than any location the index stores, so they could not be checked against a returned passage. The retry cited `[Reg 2019/947, Article 14]` and `[Reg 2019/945, PART 2 Requirements for a class C1 Unmanned aircraft system]`, which match.
 
 Why the 10 first drafts failed, from the notes in `eval/answers.jsonl` (q17 had two problems):
 
@@ -322,6 +328,38 @@ What each failure shows:
 
 The answers don't define key terms before giving the evidence. In my own grading I noted that q02 should say what the open category is, q03 should define a toy, and q07, q08 and q10 were right but left key concepts undefined. I would fix that first.
 
+### v2: testing fixes for the failures in the table
+
+After this analysis, a second version targeted the failure modes in the table, keeping the test set, the model, rule 6, the judge rubric and the strict refusal check unchanged (commit `99dfbf4`, details in `eval/v2/README.md`):
+- `search` starts each passage with the citation to copy and the document's version (section 6), so the version note is in the retrieved text and no passage number is offered as a source;
+- AGENTS.md asks for another search when a multi-part question isn't fully covered, and for one citation per bracket;
+- the citation check splits `[A, x; B, y]` and checks each citation.
+
+v2 answered all 32 questions on the same three documents and was judged with the same rubric (`eval/v2/`):
+
+| | v1 | v2 |
+|---|---|---|
+| Correct | 21 | 26 |
+| Unsupported | 4 | 0 |
+| Wrong | 1 | 0 |
+| Correct refusal | 5 | 6 |
+| Answered an unanswerable question | 1 | 0 |
+| Handled correctly (95% interval) | 26 / 32 (0.647–0.911) | 32 / 32 (0.893–1.000) |
+| Citations valid | 32 / 32 | 32 / 32 |
+| Citation check fired | 10 | 0 |
+| Searches (runs with a single search) | 38 (29) | 35 (29) |
+| Multi questions with both passages retrieved in the run | 3 of 6 | 5 of 6 |
+| Tokens per question, mean / median | 4,367 / 3,294 | 3,534 / 3,345 |
+
+Six questions changed, all from a failure to a pass, and none the other way:
+- q07, q08, q10 and q21 are now *supported*: the version note the judge flagged is in the retrieved text.
+- q26 now names the consent rule: its single search, worded slightly differently ("…operator ensure people taking part" instead of "…operator requirements for people taking part"), returned `UAS.OPEN.050`. The multi-part rule did not make the agent search more (29 of the 32 runs still made one search), so this fix came from the query wording, not from the rule.
+- q32 now starts with "The corpus does not cover", so the code counts it as a correct refusal. The content is the same ("without undue delay"), so by my reading it is still a bad test question.
+
+What v2 does not show: the judge is still the same model, it is a single run on the same 32 questions, and its seconds are not comparable with v1, because the Gemini API was overloaded during the v2 run (median 45.4 s, inflated by retry waits). v2 also does not do my fix-first (defining key terms), which remains to be done.
+
+By the rule I set before running it (keep v2 only if it improves with no regression and `check.py` passes), v2 is the shipped configuration: `check.py --evaluate` passed on a fresh clone. The tables before this subsection stay the v1 results, which my grades refer to.
+
 ### Cost and latency
 
 Per question, over the 32 runs in `eval/answers.jsonl` (agent tokens; the judge's tokens were not logged):
@@ -333,7 +371,7 @@ Per question, over the 32 runs in `eval/answers.jsonl` (agent tokens; the judge'
 
 Three runs took over 100 s: q04 (802 s), q10 (237 s) and q03 (105 s). They are most likely free-tier rate-limit waits, which are not logged, so they cannot be subtracted exactly. Without those three runs the mean is 21.9 s; the median is the typical case. The evaluation run made 37 searches (38 requested, 1 blocked), each one query embedding.
 
-**In money.** The project ran on the free tier, which costs nothing within its daily limits. At the paid-tier prices of the Gemini Developer API ([pricing page](https://ai.google.dev/gemini-api/docs/pricing), checked 23 November 2026: Gemini 3.1 Flash-Lite $0.25 per million input tokens and $1.50 per million output tokens; Gemini Embedding 2 $0.20 per million tokens), the mean question costs $0.001479 in model tokens plus at most $0.0000033 for its query embeddings (counting 2 tokens per word, since their tokens are not logged). At the ECB reference rate of 1.0990 USD per euro (20 November 2026) that is **€0.0013 per question, or €1.35 per 1,000 questions**.
+**In money.** The project ran on the free tier, which costs nothing within its daily limits. At the paid-tier prices of the Gemini Developer API ([pricing page](https://ai.google.dev/gemini-api/docs/pricing), checked 23 November 2026: Gemini 3.1 Flash-Lite $0.25 per million input tokens and $1.50 per million output tokens; Gemini Embedding 2 $0.20 per million tokens), the mean question costs $0.001479 in model tokens plus at most $0.0000033 for its query embeddings (counting 2 tokens per word, since their tokens are not logged). At the ECB reference rate of 1.0990 USD per euro (20 November 2026) that is **€0.0013 per question, or €1.35 per 1,000 questions**. v2 costs €1.08 per 1,000 at the same prices: it needs no citation retries, although every passage now carries a version line.
 
 ### Decision
 
@@ -349,6 +387,7 @@ Three runs took over 100 s: q04 (802 s), q10 (237 s) and q03 (105 s). They are m
 - **Corpus versions.** Regulation 2019/947 as consolidated on 4 April 2022, Regulation 2019/945 as consolidated on 9 August 2020 and EASA's Issue 1 of 2019. Later amendments and guidance issues are not in the corpus, so an answer can be out of date; rule 6 makes the agent say which versions it used.
 - **The committed index includes the U-space document** added for the demo, so re-running the agent today would answer q31, which the test set labels unanswerable.
 - **Latency was measured on the free tier**, where rate-limit waits are part of the time and are not logged; the judge's tokens are not in the cost.
+- **v2 is one run**, judged by the same model, and its latency was measured while the API was overloaded.
 - **The subagent's 3-search limit** is only an instruction in Claude Code (it made 4 searches); only `agent.py` enforces its limits.
 - **Re-indexing a changed source.** `main.py index` embeds chunks it has not stored yet but does not delete old ones, so if a source's text changed, its old and new chunks would sit side by side. `add_document` replaces them; `main.py index` does not.
 
@@ -375,6 +414,8 @@ Which run produced which numbers:
 | My grades and notes (`eval/human_labels.csv`) and failure causes | me | commits `0b00c9a` and `525a3a0` |
 | Second judge pass (`eval/judge_rerun.jsonl`), `judge_stability` in `eval/summary.json` | `evaluate.py --rejudge`, same rubric and prompt as v1, on 23 November 2026 | commit `2edbfbc` |
 | Judge audit (`eval/judge_audit.md`) | Claude, reading each verdict against its evidence | commit `1651be2` |
+| v2 answers and verdicts (`eval/v2/answers.jsonl`, `eval/v2/judge.jsonl`) | `EVAL_DIR=eval/v2` run of `evaluate.py` on 23 November 2026, on the three corpus documents | agent at commit `c2d0ff7` |
+| v2 summary (`eval/v2/summary.json`, `failures.csv`, `retrieval.csv`) | the same command, from the cached v2 results | the submitted commit, offline |
 | Subagent transcript (`eval/subagent_transcript.txt`) | Claude Code 2.1.330, `claude -p` | run on commit `be2c828` |
 
 Answers and verdicts are cached, so `main.py evaluate` only calls Gemini for questions that have no cached answer or verdict; delete a line in `eval/answers.jsonl` or `eval/judge.jsonl` to redo it. `uv run python evaluate.py --rejudge` judges every answer a second time into `eval/judge_rerun.jsonl` (26 judge calls), and `EVAL_DIR=<folder> uv run python evaluate.py` writes a complete new run into another folder without touching the v1 results.
@@ -391,6 +432,7 @@ In a final review pass, Claude:
 - audited the 26 judge verdicts (`eval/judge_audit.md`) and ran the judge a second time over all of them to measure its stability;
 - made `index.py` skip a source it can't download, made `search` errors say why, and added offline tests (`tests/`, run with pytest) and a linter (ruff);
 - built a grading sheet for q21–q32 without the judge's verdicts (`eval/grading_sheet.md`);
+- built v2 (the citation header with the version, the multi-part search rule, the split citation check), ran it on all 32 questions into `eval/v2/`, and applied my adoption rule;
 - re-ran `main.py index`, `main.py evaluate` and `check.py` on fresh clones, reordered this report along the brief, added the Limitations and Reproducibility sections, and added `tests/test_report_numbers.py`, which recomputes the numbers in this report from the committed files.
 
 I wrote the test set myself and graded 20 answers myself. I chose the cause of each failure, the decision to keep rule 6 and the strict checks, the `w150` design, what to fix first and the ship decision.

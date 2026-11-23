@@ -226,7 +226,7 @@ def test_transcript_matches_the_full_log():
 def test_citation_check_numbers():
     fired = [a for a in ANSWERS if a["guardrail"] != "passed"]
     assert all(a["guardrail"].startswith("retried:") for a in fired)
-    says(f"It fired on {len(fired)} of {len(ANSWERS)} questions. All {len(fired)} passed after the retry")
+    says(f"In the v1 run it fired on {len(fired)} of {len(ANSWERS)} questions. All {len(fired)} passed after the retry")
     labels = {"two citations in one bracket": "Two citations in one bracket, `[A, x; B, y]`",
               "passage number as source": "The passage number used as the source, `[5, AMC1 UAS.OPEN.30(1)]`",
               "location finer than the stored one": "A location finer than the stored one, `Article 14(5)(a)(i)`",
@@ -426,3 +426,70 @@ def test_cost_and_latency():
     says(f"counting {evaluate.TOKENS_PER_WORD_MAX} tokens per word")
     says(f"ECB reference rate of {evaluate.USD_PER_EUR:.4f} USD per euro (20 November 2026)")
     says(f"€{c['eur_per_question']:.4f} per question, or €{c['eur_per_1000_questions']:.2f} per 1,000 questions")
+
+
+# ---------- v2 ----------
+
+V2_DIR = EVAL / "v2"
+V2 = json.loads((V2_DIR / "summary.json").read_text(encoding="utf-8"))
+V2_ANSWERS = {a["id"]: a for a in map(json.loads, (V2_DIR / "answers.jsonl").open(encoding="utf-8"))}
+
+
+def outcomes_of(judge_file: Path, answers: dict, monkeypatch) -> dict:
+    monkeypatch.setattr(evaluate, "JUDGE", judge_file)
+    return {r["id"]: evaluate.outcome(r) for r in evaluate.grade_all(QUESTIONS, answers)}
+
+
+def test_v2_against_v1(monkeypatch):
+    v1 = outcomes_of(EVAL / "judge.jsonl", BY_ID, monkeypatch)
+    v2 = outcomes_of(V2_DIR / "judge.jsonl", V2_ANSWERS, monkeypatch)
+    assert dict(Counter(v2.values())) == {k: n for k, n in V2["outcomes"].items() if n}
+    for label, key in [("Correct", "correct"), ("Unsupported", "unsupported"), ("Wrong", "wrong"),
+                       ("Correct refusal", "correct refusal"), ("Answered an unanswerable question", "answered unanswerable")]:
+        says(f"| {label} | {Counter(v1.values())[key]} | {Counter(v2.values())[key]} |")
+    good = {"correct", "correct refusal"}
+    fixed = sorted(i for i in v1 if v1[i] not in good and v2[i] in good)
+    worse = sorted(i for i in v1 if v1[i] in good and v2[i] not in good)
+    assert fixed == ["q07", "q08", "q10", "q21", "q26", "q32"] and worse == []
+    assert sorted(i for i in v1 if v1[i] != v2[i]) == fixed
+    says("Six questions changed, all from a failure to a pass, and none the other way")
+
+    h1, h2 = ANALYSIS["rates_wilson95"]["handled_correctly"], V2["analysis"]["rates_wilson95"]["handled_correctly"]
+    says(f"| Handled correctly (95% interval) | {h1['k']} / {h1['n']} ({f3(h1['ci'][0])}–{f3(h1['ci'][1])}) | "
+         f"{h2['k']} / {h2['n']} ({f3(h2['ci'][0])}–{f3(h2['ci'][1])}) |")
+    c2 = V2["analysis"]["rates_wilson95"]["citations_valid"]
+    says(f"| Citations valid | 32 / 32 | {c2['k']} / {c2['n']} |")
+    fired2 = sum(a["guardrail"] != "passed" for a in V2_ANSWERS.values())
+    assert fired2 == V2["guardrail_fired"]
+    says(f"| Citation check fired | {SUMMARY['guardrail_fired']} | {fired2} |")
+    def single(answers) -> int:
+        return sum(searches(a) == 1 for a in answers)
+
+    says(f"| Searches (runs with a single search) | {sum(searches(a) for a in ANSWERS)} ({single(ANSWERS)}) | "
+         f"{sum(searches(a) for a in V2_ANSWERS.values())} ({single(V2_ANSWERS.values())}) |")
+    m1 = len(ANALYSIS["agent_retrieval"]["multi_with_all_expected"])
+    m2 = len(V2["analysis"]["agent_retrieval"]["multi_with_all_expected"])
+    says(f"| Multi questions with both passages retrieved in the run | {m1} of 6 | {m2} of 6 |")
+    t1, t2 = ANALYSIS["tokens"], V2["analysis"]["tokens"]
+    says(f"| Tokens per question, mean / median | {t1['mean']:,} / {round(t1['median']):,} | "
+         f"{t2['mean']:,} / {round(t2['median']):,} |")
+    says(f"median {V2['analysis']['seconds']['median']} s, inflated by retry waits")
+    says(f"v2 costs €{V2['analysis']['cost_paid_tier']['eur_per_1000_questions']:.2f} per 1,000")
+
+
+def test_v2_fixes_as_described():
+    q26 = V2_ANSWERS["q26"]
+    assert searches(q26) == 1 and any(loc.startswith("UAS.OPEN.050") for _, loc in map(tuple, q26["passages"]))
+    assert "informed of the risks" in q26["answer"]
+    assert BY_ID["q26"]["tool_calls"][0][1]["query"].endswith("operator requirements for people taking part")
+    assert q26["tool_calls"][0][1]["query"].endswith("operator ensure people taking part")
+    says("worded slightly differently (\"…operator ensure people taking part\" instead of "
+         "\"…operator requirements for people taking part\")")
+    says(f"{sum(searches(a) == 1 for a in V2_ANSWERS.values())} of the 32 runs still made one search")
+    q32 = V2_ANSWERS["q32"]
+    assert q32["answer"].startswith("The corpus does not cover") and "without undue delay" in q32["answer"]
+    header = next(line for line in V2_ANSWERS["q05"]["retrieved_text"].splitlines()
+                  if line.startswith("Passage 3 ") and "UAS.OPEN.040" in line)
+    says(header)
+    assert V2["analysis"]["version_note"]["judged_with_note_unsupported"] == []
+
