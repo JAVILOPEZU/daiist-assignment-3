@@ -215,6 +215,8 @@ Why the 10 first drafts failed, from the notes in `eval/answers.jsonl` (q17 had 
 | Two locations after one source | 1 (q28) |
 | No citation at all: a refusal that didn't start with the exact phrase | 2 (q29, q31) |
 
+Seven of the 11 problems are about the citation's format, not its content: two citations in one bracket, the passage number as the source, two locations after one source. The cheapest prevention is in the search output rather than in the prompt: start each passage with the exact citation to copy (`Cite as: [source, location]`) instead of a bare number, and let the check split `[A, x; B, y]` into two citations.
+
 ## 8. Evaluation
 
 The agent answered all 32 questions (`eval/answers.jsonl`).

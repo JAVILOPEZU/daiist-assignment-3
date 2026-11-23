@@ -240,6 +240,9 @@ def test_citation_check_numbers():
     assert set(by_pattern) == set(labels)
     for p, ids in by_pattern.items():
         says(f"| {labels[p]} | {len(ids)} ({', '.join(ids)}) |")
+    form = ("two citations in one bracket", "passage number as source", "two locations after one source")
+    n_form, n_all = sum(len(by_pattern[p]) for p in form), sum(len(ids) for ids in by_pattern.values())
+    says(f"{({6: 'Six', 7: 'Seven', 8: 'Eight'})[n_form]} of the {n_all} problems are about the citation's format")
     q25 = BY_ID["q25"]
     assert "Article 14(5)(a)(i)" in q25["guardrail"] and "Part 2(1)" in q25["guardrail"]
     assert {("Reg 2019/947", "Article 14"),
