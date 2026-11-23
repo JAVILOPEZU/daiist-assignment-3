@@ -184,16 +184,16 @@ def code_checks(q: dict, a: dict) -> dict:
 def judge(q: dict, a: dict) -> dict:
     prompt = RUBRIC.format(question=q["question"], reference=q["reference_answer"],
                            evidence=a["retrieved_text"][:20000] or "(nothing retrieved)", answer=a["answer"])
-    for attempt in range(4):  # the free tier often answers 503 "high demand"
+    for attempt in range(6):  # the free tier often answers 503 "high demand"; back off up to 5 min
         try:
             res = index.client().models.generate_content(
                 model=agent.MODEL, contents=prompt,
                 config=types.GenerateContentConfig(temperature=0, response_mime_type="application/json"))
             break
         except (errors.ServerError, errors.ClientError) as e:
-            if e.code not in (429, 503) or attempt == 3:
+            if e.code not in (429, 503) or attempt == 5:
                 raise
-            time.sleep(30 * (attempt + 1))
+            time.sleep(min(30 * 2 ** attempt, 300))
     v = json.loads(res.text)
     return {"id": q["id"], "correct": int(v["correct"]), "supported": int(v["supported"]), "reason": v.get("reason", "")}
 
