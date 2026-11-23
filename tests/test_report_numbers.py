@@ -90,6 +90,7 @@ def test_corpus_words_and_chunk_counts(index_copy):
     says(f"| Total | | | | {sum(words[s] for s in regs):,} |")
     says(f"Regulation (EU) 2021/664 on U-space ({words[U_SPACE]:,} words)")
     says("rebuilt from the chunks stored in `index/`")
+    says("a fresh download and extraction of all three gave these counts and the same chunks as the committed index")
 
     c150, c400 = ({s: len(c) for s, c in d.items()} for d in (w150, w400))
     says(f"| `w150` (150 words) | {' | '.join(str(c150[s]) for s in regs)} | {sum(c150[s] for s in regs)} "
@@ -98,10 +99,11 @@ def test_corpus_words_and_chunk_counts(index_copy):
     says(f"({c150[U_SPACE]} chunks)")
 
 
-def test_easa_rebuild_matches_the_fresh_extraction(index_copy):
-    says("The EASA count comes from a fresh extraction")
-    says("16,807")  # main.py index logs "EASA AMC-GM Part-UAS: 16807 words" from the PDF
-    assert rebuilt_words(stored("w150")["EASA AMC-GM Part-UAS"], 150) == 16807
+def test_rebuild_matches_the_fresh_extraction(index_copy):
+    # what `main.py index` logged on 23 November 2026 after downloading the three files again
+    logged = {"Reg 2019/947": 19100, "Reg 2019/945": 20428, "EASA AMC-GM Part-UAS": 16807}
+    w150 = stored("w150")
+    assert {s: rebuilt_words(w150[s], 150) for s in logged} == logged
 
 
 def test_index_settings_and_size():

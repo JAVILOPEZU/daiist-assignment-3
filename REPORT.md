@@ -21,7 +21,7 @@ A wrong answer can mean an illegal or unsafe flight, a fine or an accident. "I d
 | EASA AMC & GM to Part-UAS, Issue 1 (ED Decision 2019/021/R, Annex II) | [EASA PDF](https://www.easa.europa.eu/sites/default/files/dfu/AMC%20&%20GM%20to%20Part-UAS%20%E2%80%94%20Issue%201.pdf) | Issue 1, 9 October 2019 (61 pages) | © EASA; reproduction authorised provided the source is acknowledged | 16,807 |
 | **Total** | | | | **56,335** |
 
-All three are public, contain no personal data, and are written for exactly this audience. Word counts are after extraction and cleaning; `main.py index` logs them per document. The EASA count comes from a fresh extraction. During the final review EUR-Lex returned empty files, so the two regulations' counts were rebuilt from the chunks stored in `index/` (removing the overlap between consecutive chunks). The same rebuild gives exactly the extracted count for the EASA PDF, and the 150- and 400-word indexes give the same totals. Added later for the add-document demo: Regulation (EU) 2021/664 on U-space (6,150 words), see [Adding a document](#adding-a-document).
+All three are public, contain no personal data, and are written for exactly this audience. Word counts are after extraction and cleaning; `main.py index` logs them per document. In the final review, a fresh download and extraction of all three gave these counts and the same chunks as the committed index, so nothing had to be embedded again. The counts can also be rebuilt from the chunks stored in `index/` (removing the overlap between consecutive chunks), which gives the same numbers in the 150- and 400-word indexes; `tests/test_report_numbers.py` does that. Added later for the add-document demo: Regulation (EU) 2021/664 on U-space (6,150 words), see [Adding a document](#adding-a-document).
 
 ## 3. Ingestion
 
@@ -346,7 +346,6 @@ Three runs took over 100 s: q04 (802 s), q10 (237 s) and q03 (105 s). They are m
 - **The committed index includes the U-space document** added for the demo, so re-running the agent today would answer q31, which the test set labels unanswerable.
 - **Latency was measured on the free tier**, where rate-limit waits are part of the time and are not logged; the judge's tokens are not in the cost.
 - **The subagent's 3-search limit** is only an instruction in Claude Code (it made 4 searches); only `agent.py` enforces its limits.
-- **Two word counts were rebuilt from the index** because EUR-Lex returned empty files during the final review.
 - **Re-indexing a changed source.** `main.py index` embeds chunks it has not stored yet but does not delete old ones, so if a source's text changed, its old and new chunks would sit side by side. `add_document` replaces them; `main.py index` does not.
 
 ## Reproducibility
