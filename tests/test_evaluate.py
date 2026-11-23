@@ -55,3 +55,26 @@ def test_agreement_accepts_any_number_of_rows_and_skips_incomplete_ones(tmp_path
 def test_agreement_without_labels(tmp_path, monkeypatch):
     monkeypatch.setattr(evaluate, "EVAL", tmp_path)
     assert evaluate.agreement([{"id": "q1", "correct": 1, "supported": 1}]) == {"graded_by_me": 0}
+
+
+def test_wilson_interval():
+    assert evaluate.wilson(26, 32) == [0.647, 0.911]
+    assert evaluate.wilson(32, 32) == [0.893, 1.0]
+    low, high = evaluate.wilson(0, 10)
+    assert low == 0.0 and 0 < high < 0.35
+
+
+def test_guardrail_patterns():
+    assert evaluate.guardrail_patterns("retried: [5, AMC1 UAS.OPEN.30(1)] does not match any passage search returned") \
+        == ["passage number as source"]
+    assert evaluate.guardrail_patterns(
+        "retried: [Reg 2019/947, UAS.OPEN.010; Reg 2019/947, Article 4] does not match any passage search returned") \
+        == ["two citations in one bracket"]
+    assert evaluate.guardrail_patterns(
+        "retried: [Reg 2019/947, Article 14(5)(a)(i)] does not match any passage search returned") \
+        == ["location finer than the stored one"]
+    assert evaluate.guardrail_patterns(
+        "retried: [Reg 2019/947, UAS.OPEN.060, UAS.SPEC.060] does not match any passage search returned") \
+        == ["two locations after one source"]
+    assert evaluate.guardrail_patterns("retried: the answer has no [source, location] citations") \
+        == ["no citations (refusal without the exact phrase)"]

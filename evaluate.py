@@ -14,9 +14,13 @@ Totals go to eval/summary.json; failed questions to eval/failures.csv.
 import asyncio
 import csv
 import json
+import math
 import os
+import re
+import statistics
 import sys
 import time
+from collections import Counter
 from pathlib import Path
 
 from google.genai import errors, types
@@ -34,6 +38,17 @@ ANSWERS = EVAL / "answers.jsonl"
 JUDGE = EVAL / "judge.jsonl"
 JUDGE_RERUN = EVAL / "judge_rerun.jsonl"          # second, independent judge pass (`--rejudge`)
 KS = (1, 3, 5)
+
+# Cost: USD per 1M tokens, paid tier of the Gemini Developer API (ai.google.dev/pricing, checked 23 Nov 2026).
+# The free tier used for this project costs nothing; these prices show what the same traffic would cost.
+PRICE_USD = {"agent_input": 0.25, "agent_output": 1.50, "embedding_input": 0.20}
+USD_PER_EUR = 1.0990       # ECB euro reference rate, 20 Nov 2026
+TOKENS_PER_WORD_MAX = 2    # assumed upper bound to price query embeddings, whose tokens are not logged
+SLOW_RUN_S = 100           # runs slower than this are counted as rate-limit waits when estimating latency
+
+REFUSAL_WORDS = re.compile(r"\b(?:does not|doesn't|do not) (?:cover|specify|mention|contain|provide|define)\b", re.IGNORECASE)
+VERSION_NOTE = re.compile(r"(?:based on|according to)[^.\n]{0,60}\b20(?:19|20|22)\b|\b20(?:19|20|22) (?:consolidated|EASA)",
+                          re.IGNORECASE)
 
 # Before/after demo: an unanswerable question and a file that answers it.
 # Leave as None until both are chosen.
@@ -227,6 +242,91 @@ def outcome(r: dict) -> str:
     return "correct" if r["correct"] else "wrong"
 
 
+# ---------- 4b. analysis of a run (no API calls) ----------
+
+def wilson(k: int, n: int, z: float = 1.96) -> list[float]:
+    """95% Wilson score interval for k successes out of n."""
+    p, d = k / n, 1 + z * z / n
+    centre, half = (p + z * z / (2 * n)) / d, z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / d
+    return [round(max(0.0, centre - half), 3), round(min(1.0, centre + half), 3)]
+
+
+def guardrail_patterns(note: str) -> list[str]:
+    """Why a first draft failed the citation check, from the guardrail note."""
+    if "has no [source, location] citations" in note:
+        return ["no citations (refusal without the exact phrase)"]
+    found = set()
+    for cited in re.findall(r"\[([^\[\]]+)\] does not match", note):
+        if re.match(r"\d+, ", cited):
+            found.add("passage number as source")
+        elif ";" in cited:
+            found.add("two citations in one bracket")
+        elif cited.count(", ") >= 2:
+            found.add("two locations after one source")
+        elif re.search(r"\(\d", cited.split(", ", 1)[-1]):
+            found.add("location finer than the stored one")
+        else:
+            found.add("other")
+    return sorted(found)
+
+
+def analysis(results: list[dict], answers: dict) -> dict:
+    """Breakdowns for the report: outcomes by kind, 95% intervals, refusals, the version note,
+    guardrail patterns, tokens, latency and cost. Everything comes from the cached run."""
+    n = len(results)
+    answerable = [r for r in results if r["kind"] != "unanswerable"]
+    unanswerable = [r for r in results if r["kind"] == "unanswerable"]
+    rates = {"handled_correctly": (sum(r["outcome"] in ("correct", "correct refusal") for r in results), n),
+             "correct_of_answerable": (sum(r["outcome"] == "correct" for r in answerable), len(answerable)),
+             "unsupported_of_answerable": (sum(r["outcome"] == "unsupported" for r in answerable), len(answerable)),
+             "refused_of_unanswerable": (sum(r["outcome"] == "correct refusal" for r in unanswerable),
+                                         len(unanswerable)),
+             "citations_valid": (sum(r["citations_valid"] for r in results), n)}
+    text = {r["id"]: answers[r["id"]]["answer"] for r in results}
+    prefix = sorted(i for i, t in text.items() if t.strip().startswith(agent.REFUSED_PREFIX))
+    other_words = sorted(i for i, t in text.items() if i not in prefix and REFUSAL_WORDS.search(t.split("\n")[0]))
+    partial = sorted(i for i, t in text.items() if i not in prefix + other_words and REFUSAL_WORDS.search(t))
+    verdicts = read_jsonl(JUDGE)
+    note = sorted(i for i, t in text.items() if VERSION_NOTE.search(t))
+    fired = {r["id"]: guardrail_patterns(r["guardrail"]) for r in results if r["guardrail"] != "passed"}
+    tokens = [answers[i]["input_tokens"] + answers[i]["output_tokens"] for i in text]
+    seconds = [answers[i]["seconds"] for i in text]
+    slow = sorted(i for i in text if answers[i]["seconds"] > SLOW_RUN_S)
+    mean_in = statistics.mean(answers[i]["input_tokens"] for i in text)
+    mean_out = statistics.mean(answers[i]["output_tokens"] for i in text)
+    searches = [c[1].get("query", "") for i in text for c in answers[i]["tool_calls"] if c[0] == "search"]
+    blocked = sum(answers[i]["retrieved_text"].count("Tool call limit exceeded") for i in text)
+    embed_tokens_max = TOKENS_PER_WORD_MAX * sum(len(q.split()) for q in searches) / n
+    usd = {"agent": (mean_in * PRICE_USD["agent_input"] + mean_out * PRICE_USD["agent_output"]) / 1e6,
+           "query_embeddings_max": embed_tokens_max * PRICE_USD["embedding_input"] / 1e6}
+    eur = sum(usd.values()) / USD_PER_EUR
+    return {
+        "outcomes_by_kind": {k: dict(Counter(r["outcome"] for r in results if r["kind"] == k))
+                             for k in ("single", "multi", "unanswerable")},
+        "rates_wilson95": {k: {"k": a, "n": b, "rate": round(a / b, 3), "ci": wilson(a, b)}
+                           for k, (a, b) in rates.items() if b},
+        "refusals": {"exact_prefix": prefix, "refusal_in_other_words": other_words,
+                     "partly_refused_answers": partial},
+        "version_note": {"answers": len(note), "of": n, "judged_with_note": sum(i in verdicts for i in note),
+                         "judged": len(verdicts),
+                         "judged_with_note_unsupported": sorted(i for i in note if i in verdicts
+                                                                and verdicts[i]["supported"] == 0)},
+        "guardrail": {"fired": len(fired), "patterns": dict(Counter(p for ps in fired.values() for p in ps)),
+                      "by_question": fired},
+        "searches": {"requested": len(searches), "blocked": blocked, "executed": len(searches) - blocked},
+        "tokens": {"mean": round(statistics.mean(tokens)), "median": statistics.median(tokens),
+                   "mean_input": round(mean_in), "mean_output": round(mean_out)},
+        "seconds": {"mean": round(statistics.mean(seconds), 1), "median": statistics.median(seconds),
+                    f"mean_without_runs_over_{SLOW_RUN_S}s": round(statistics.mean(
+                        answers[i]["seconds"] for i in text if i not in slow), 1),
+                    "runs_over": slow},
+        "cost_paid_tier": {"usd_per_question_agent": round(usd["agent"], 6),
+                           "usd_per_question_query_embeddings_max": round(usd["query_embeddings_max"], 7),
+                           "eur_per_question": round(eur, 6), "eur_per_1000_questions": round(eur * 1000, 2),
+                           "usd_per_eur": USD_PER_EUR},
+    }
+
+
 # ---------- 5. agreement ----------
 
 def kappa(pairs: list[tuple[int, int]]) -> float | None:
@@ -325,6 +425,7 @@ def main() -> None:
         "avg_seconds": round(sum(r["seconds"] for r in results) / n, 1),
         "judge_vs_me": agreement(results),
         "judge_stability": judge_stability(),
+        "analysis": analysis(results, answers),
     }
     (EVAL / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
 
