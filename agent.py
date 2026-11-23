@@ -37,7 +37,7 @@ REFUSED_PREFIX = "The corpus does not cover"  # also catches "...does not cover 
 BRACKET = re.compile(r"\[([^\[\]]+)\]")
 PASSAGE_HEADER = re.compile(  # what search returns: v1 "[1] source, location (score s)",
     r"^(?:\[\d+\] (.+?), (.+?) \(score [\d.\-]+\)$"  # v2 "Passage 1 (score s). Cite as: [source, location]."
-    r"|Passage \d+ \(score [\d.\-]+\)\. Cite as: \[(.+?), (.+?)\]\.)", re.M)
+    r"|Passage \d+ \(score [\d.\-]+\)\. Cite as: \[(.+?), (.+?)\]\.)", re.MULTILINE)
 
 
 def citations_in(answer: str) -> list[tuple[str, str]]:

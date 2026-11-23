@@ -37,4 +37,4 @@ testpaths = ["tests"]
 
 [tool.ruff]
 line-length = 120
-extend-exclude = ["check.py"]  # the course's checker; not ours to edit
+extend-exclude = ["check.py", "api_key.py"]  # the course's checker and key helper; not ours to edit

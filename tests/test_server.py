@@ -3,6 +3,7 @@
 import random
 
 import pytest
+from mcp.server.mcpserver.exceptions import ToolError
 
 import index
 import server
@@ -45,3 +46,19 @@ def test_same_content_is_a_no_op_and_changed_content_replaces_the_chunks(tmp_ind
     assert server.add_document(str(f)).startswith("Replaced 'rules.txt': 1 chunks")
     after = chunk_ids("rules.txt")
     assert len(after) == 1 and not after & before
+
+
+def test_search_failures_are_tool_errors_with_a_reason(monkeypatch):
+    def no_key(query):
+        raise RuntimeError("No GEMINI_API_KEY found.")
+
+    monkeypatch.setattr(index, "retrieve", no_key)
+    with pytest.raises(ToolError, match="Put the key in .env"):
+        server.search("max height")
+
+    def offline(query):
+        raise ConnectionError("network unreachable")
+
+    monkeypatch.setattr(index, "retrieve", offline)
+    with pytest.raises(ToolError, match="ConnectionError: network unreachable"):
+        server.search("max height")

@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 
 from mcp.server.mcpserver import MCPServer
+from mcp.server.mcpserver.exceptions import ToolError
 
 import index
 
@@ -28,7 +29,13 @@ def search(query: str) -> str:
     Returns the 5 most relevant passages. Each one starts with the exact citation to copy,
     [source, location] (article, UAS point or AMC/GM heading), and its document's version.
     """
-    hits = index.retrieve(query)
+    try:
+        hits = index.retrieve(query)
+    except RuntimeError as e:  # no API key: MCP clients pass server.py only a few environment variables
+        raise ToolError(f"{e}\nPut the key in .env: the editor or agent that starts server.py "
+                        "does not pass GEMINI_API_KEY from your shell.") from e
+    except Exception as e:  # network, quota, index: say what failed instead of a bare crash
+        raise ToolError(f"search failed: {type(e).__name__}: {e}") from e
     if not hits:
         return "No passages found."
     return "\n\n".join(
