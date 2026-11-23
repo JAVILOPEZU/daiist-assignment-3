@@ -208,4 +208,6 @@ AI wrote the code.
 
 Claude (Anthropic) was also used to review the repository, to build a grading page and to walk me through the answers one by one (with neutral summaries of each answer and its passages) while I gave my own grades and failure causes, to make `evaluate.py` keep the hand-filled `cause` column when it re-runs, and to draft the factual parts of this report from the files in `eval/` and `index/`. Claude also turned my notes for the analysis sections (test set, evaluation, failures, decision) into sentences.
 
+In a final review, Claude also added the `multi_all@k` metric to `evaluate.py`, reusing the saved query vectors. It made `index.py` skip a source it can't download instead of crashing. It re-ran `main.py index` and `main.py evaluate` with no new embeddings or judge calls, and ran `check.py` on a fresh clone, which passed. It corrected facts in this report (word counts, call limits, judge scope and limitations, the q26 and q32 evidence) and built a second blind grading sheet for q21–q32.
+
 I wrote the test set myself and graded 20 answers myself. I chose the cause of each failure, the decision to keep rule 6 and the strict checks, what to fix first and the ship decision.
