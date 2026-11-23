@@ -462,6 +462,8 @@ def test_v2_against_v1(monkeypatch):
     fired2 = sum(a["guardrail"] != "passed" for a in V2_ANSWERS.values())
     assert fired2 == V2["guardrail_fired"]
     says(f"| Citation check fired | {SUMMARY['guardrail_fired']} | {fired2} |")
+    if fired2 == 0:
+        says("v2 does both (section 9), and the check did not fire once in its 32 runs")
     def single(answers) -> int:
         return sum(searches(a) == 1 for a in answers)
 
