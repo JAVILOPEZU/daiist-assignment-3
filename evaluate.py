@@ -264,11 +264,13 @@ def main() -> None:
     (EVAL / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
 
     failed = [r for r in results if r["outcome"] not in ("correct", "correct refusal")]
+    # `cause` is filled in by hand; keep what is already there when this reruns
+    causes = {r["id"]: r.get("cause", "") for r in read_csv(EVAL / "failures.csv")}
     with (EVAL / "failures.csv").open("w", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=["id", "kind", "outcome", "retrieved_expected", "reason", "cause"])
         w.writeheader()
-        for r in failed:  # `cause` is left for me to fill in by hand
-            w.writerow({k: r.get(k, "") for k in w.fieldnames})
+        for r in failed:
+            w.writerow({**{k: r.get(k, "") for k in w.fieldnames}, "cause": causes.get(r["id"], "")})
 
     add_document_demo(questions, answers)
     print(json.dumps(summary, indent=2))
