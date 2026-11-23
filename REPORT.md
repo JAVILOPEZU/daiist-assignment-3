@@ -253,7 +253,7 @@ What each failure shows:
 - **q26:** the agent searched once, with its own query, and `UAS.OPEN.050` point (7) (everyone involved in an A2 or A3 operation must be informed of the risks and explicitly agree) was not among the results. The agent then said the rules don't cover that part. With the question text as the query, the `w150` retrieval evaluation does return `UAS.OPEN.050` in the top 5.
 - **q32:** the agent replied "The corpus does not specify a set number of days…" and cited `UAS.SPEC.040`, which says the authority issues the authorisation "without undue delay". The code only counts answers starting "The corpus does not cover" as refusals. I classify it as a bad test question: the corpus does answer it (no fixed number of days, only "without undue delay"), so it should not have been labelled unanswerable.
 
-**What to fix first:** the answers don't define key terms before giving the evidence. In my own grading I noted that q02 should say what the open category is and q03 should define a toy. I would fix that first.
+**What to fix first:** the answers don't define key terms before giving the evidence. In my own grading I noted that q02 should say what the open category is, q03 should define a toy, and q07, q08 and q10 were right but left key concepts undefined. I would fix that first.
 
 ## Decision
 
