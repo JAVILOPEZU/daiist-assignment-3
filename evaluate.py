@@ -2,7 +2,7 @@
 Evaluation (`main.py evaluate`). Writes everything to eval/.
 
 1. Retrieval: hit@k, all@k (every expected passage) and MRR@5 per design and
-   question kind, for w150, w400 and a w150 BM25+dense hybrid -> eval/retrieval.csv
+   question kind, for w150, w400, BM25 alone and a w150 BM25+dense hybrid -> eval/retrieval.csv
 2. Agent on every question (cached, so reruns are cheap)    -> eval/answers.jsonl
 3. Code checks: citations valid, refusals right or wrong
 4. LLM judge with a rubric, retrieved text as evidence      -> eval/judge.jsonl
@@ -125,8 +125,9 @@ def query_vectors(questions: list[dict]) -> dict:
 
 
 def retrievers() -> dict:
-    """Design name -> search(question, query_vec). The hybrid reuses the stored w150 vectors."""
+    """Design name -> search(question, query_vec). BM25 needs no vectors; the hybrid reuses the stored w150 ones."""
     designs = {d: (lambda q, v, d=d: index.retrieve(q, d, k=max(KS), query_vec=v)) for d in index.DESIGNS}
+    designs["bm25"] = lambda q, v: index.retrieve_bm25(q, "w150", k=max(KS))
     designs["w150+bm25"] = lambda q, v: index.retrieve_hybrid(q, "w150", k=max(KS), query_vec=v)
     return designs
 

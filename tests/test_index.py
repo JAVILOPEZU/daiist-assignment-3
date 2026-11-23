@@ -79,15 +79,19 @@ def test_download_skips_a_source_it_cannot_fetch(tmp_path, monkeypatch):
 
 
 def test_bm25_ranks_documents_with_the_query_terms_first(monkeypatch):
+    rows = {"light": ("ensure that a green flashing light is activated at night",
+                      {"source": "Reg 2019/947", "location": "UAS.OPEN.060"}),
+            "mass": ("have a maximum take-off mass of less than 250 g",
+                     {"source": "Reg 2019/945", "location": "PART 1"})}
+
     class FakeCollection:
-        def get(self, include):
-            return {"ids": ["light", "mass"],
-                    "documents": ["ensure that a green flashing light is activated at night",
-                                  "have a maximum take-off mass of less than 250 g"],
-                    "metadatas": [{"source": "Reg 2019/947", "location": "UAS.OPEN.060"},
-                                  {"source": "Reg 2019/945", "location": "PART 1"}]}
+        def get(self, ids=None, include=()):
+            ids = ids or list(rows)
+            return {"ids": ids, "documents": [rows[i][0] for i in ids], "metadatas": [rows[i][1] for i in ids]}
 
     monkeypatch.setattr(index, "collection", lambda design: FakeCollection())
     monkeypatch.setattr(index, "_BM25", {})
     assert index.bm25_ranking("Do I need a light to fly at night?", "test") == ["light", "mass"]
     assert index.bm25_ranking("What is the maximum take-off mass?", "test")[0] == "mass"
+    top = index.retrieve_bm25("What is the maximum take-off mass?", "test", k=1)
+    assert [(h["source"], h["location"]) for h in top] == [("Reg 2019/945", "PART 1")]

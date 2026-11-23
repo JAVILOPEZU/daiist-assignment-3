@@ -308,6 +308,18 @@ def bm25_ranking(query: str, design: str, k1: float = 1.5, b: float = 0.75) -> l
     return [ids[i] for i in sorted(range(n), key=lambda i: -scores[i])]
 
 
+def _chunks_by_id(design: str, ids: list[str]) -> dict:
+    got = collection(design).get(ids=ids, include=["documents", "metadatas"])
+    return {i: (d, m) for i, d, m in zip(got["ids"], got["documents"], got["metadatas"])}
+
+
+def retrieve_bm25(query: str, design: str = CHOSEN_DESIGN, k: int = 5) -> list[dict]:
+    """Top-k chunks by BM25 alone (no embeddings). Evaluated to explain how the hybrid behaves."""
+    ranking = bm25_ranking(query, design)[:k]
+    by_id = _chunks_by_id(design, ranking)
+    return [{"id": i, "text": by_id[i][0], **by_id[i][1], "score": None} for i in ranking]
+
+
 def retrieve_hybrid(query: str, design: str = CHOSEN_DESIGN, k: int = 5, query_vec: list[float] | None = None,
                     pool: int = 50, rrf_k: int = 60) -> list[dict]:
     """Top-k chunks by reciprocal rank fusion of the dense top-`pool` and the BM25 top-`pool`."""
@@ -318,8 +330,7 @@ def retrieve_hybrid(query: str, design: str = CHOSEN_DESIGN, k: int = 5, query_v
         for rank, cid in enumerate(ranking, start=1):
             fused[cid] += 1 / (rrf_k + rank)
     top = sorted(fused, key=fused.get, reverse=True)[:k]
-    got = collection(design).get(ids=top, include=["documents", "metadatas"])
-    by_id = {i: (d, m) for i, d, m in zip(got["ids"], got["documents"], got["metadatas"])}
+    by_id = _chunks_by_id(design, top)
     return [{"id": i, "text": by_id[i][0], **by_id[i][1], "score": round(fused[i], 4)} for i in top]
 
 
