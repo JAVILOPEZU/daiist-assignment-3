@@ -4,13 +4,15 @@
 - **Student ID**: 18633
 - **Group**: BBADBA 5B
 
-## Use case
+The sections follow the order of the brief (items 1–9), then Limitations, Reproducibility and AI use. Every number below can be recomputed from the committed files; `tests/test_report_numbers.py` checks them.
+
+## 1. Use case
 
 Drone pilots and operators in the EU ask what the EU rules allow before they fly, buy or register a drone: height and distance limits, which subcategory (A1/A2/A3) and class (C0–C6) applies, registration, pilot competency and authorisations. They act on the answer directly, by flying, buying a drone or registering.
 
 A wrong answer can mean an illegal or unsafe flight, a fine or an accident. "I don't know" only costs the pilot a call to the national aviation authority. So the assistant must refuse rather than guess, and every claim must be traceable to an article the pilot can check.
 
-## Corpus
+## 2. Corpus
 
 | Document | URL | Version / date | Licence | Words |
 |---|---|---|---|---|
@@ -19,9 +21,9 @@ A wrong answer can mean an illegal or unsafe flight, a fine or an accident. "I d
 | EASA AMC & GM to Part-UAS, Issue 1 (ED Decision 2019/021/R, Annex II) | [EASA PDF](https://www.easa.europa.eu/sites/default/files/dfu/AMC%20&%20GM%20to%20Part-UAS%20%E2%80%94%20Issue%201.pdf) | Issue 1, 9 October 2019 (61 pages) | © EASA; reproduction authorised provided the source is acknowledged | 16,807 |
 | **Total** | | | | **56,335** |
 
-All three are public, contain no personal data, and are written for exactly this audience. Word counts are after extraction and cleaning; `main.py index` logs them per document. The EASA count comes from a fresh extraction. The two regulations' counts are rebuilt from the chunks stored in `index/`, and the 150- and 400-word indexes give the same totals. Added later for the add-document demo: Regulation (EU) 2021/664 on U-space (6,150 words), see [Adding a document](#adding-a-document).
+All three are public, contain no personal data, and are written for exactly this audience. Word counts are after extraction and cleaning; `main.py index` logs them per document. The EASA count comes from a fresh extraction. During the final review EUR-Lex returned empty files, so the two regulations' counts were rebuilt from the chunks stored in `index/` (removing the overlap between consecutive chunks). The same rebuild gives exactly the extracted count for the EASA PDF, and the 150- and 400-word indexes give the same totals. Added later for the add-document demo: Regulation (EU) 2021/664 on U-space (6,150 words), see [Adding a document](#adding-a-document).
 
-## Ingestion
+## 3. Ingestion
 
 `index.py` downloads the three files into `corpus/` (a source that can't be downloaded is skipped with a warning and its stored vectors are kept) and splits each one along its own legal structure before chunking:
 
@@ -34,14 +36,14 @@ All three are public, contain no personal data, and are written for exactly this
 
 **Known leftovers:** a few EASA headings keep PDF spacing artefacts (for example `GM1 UAS.SPEC.1 00 The u se of certified equipment`). The A2 guidance headings come out of the PDF as `AMC1 UAS.OPEN.30(1)` rather than `030`. They are kept as extracted, so citations match the stored locations.
 
-**Chunk metadata:** `source` (for example `Reg 2019/947`), `title`, `location` (article / UAS point / AMC-GM heading + page), `chunk` index and `file_hash` (SHA-256 of the file, used by `add_document`). The embedded text is `source | location` followed by the chunk, so headings help retrieval. Embeddings: `gemini-embedding-2`, 768 dimensions, cosine distance, ChromaDB in `index/chroma` (13.0 MB, as `check.py` measures it; limit 90 MB). Vectors are saved batch by batch, and only chunks without a saved vector are embedded.
+**Chunk metadata:** `source` (for example `Reg 2019/947`), `title`, `location` (article / UAS point / AMC-GM heading + page), `chunk` index and `file_hash` (SHA-256 of the file, used by `add_document`). The embedded text is `source | location` followed by the chunk, so headings help retrieval. Embeddings: `gemini-embedding-2`, 768 dimensions, cosine distance, ChromaDB in `index/chroma` (13.0 MB, as `check.py` measures it; limit 90 MB). Each chunk's id is a hash of its source, design, position and text. Vectors are saved batch by batch, and only chunks whose id has no saved vector are embedded, so re-running `main.py index` costs nothing.
 
 | Design | Reg 2019/947 | Reg 2019/945 | EASA AMC/GM | Total |
 |---|---|---|---|---|
 | `w150` (150 words) | 184 | 192 | 168 | **544** (+58 from Reg 2021/664) |
 | `w400` (400 words) | 94 | 94 | 95 | **283** |
 
-## Test set
+## 4. Test set
 
 32 questions in `eval/questions.csv`: **20 single**, **6 multi** (two passages) and **6 unanswerable**.
 
@@ -52,26 +54,45 @@ Examples:
 
 I wrote the 32 questions myself, working from a summary of the most important regulations. I covered the most restrictive topics and the ones pilots deal with daily. The unanswerable questions stay close to the topic: national fees, fines, UK rules, wind limits, U-space services and authorisation deadlines.
 
-## Retrieval
+The test set has not changed since the first evaluation run (commit `08f7fe1`, 15 November 2026). Every later experiment in this report (the extra retrieval metrics, BM25 and the hybrid) used it as it is.
 
-Hit rate over the 26 answerable questions (a hit means an expected source and location appears among the top k):
+## 5. Retrieval
 
-| Design | hit@1 | hit@3 | hit@5 | multi_all@1 | multi_all@3 | multi_all@5 | Words added to the prompt (top 5) |
-|---|---|---|---|---|---|---|---|
-| **`w150`** | **0.846** | **1.000** | **1.000** | 0.000 | 0.167 | 0.333 | **633** |
-| `w400` | 0.808 | 0.962 | 1.000 | 0.000 | 0.333 | 0.500 | 1,236 |
+All metrics are over the 26 answerable questions and use the saved query vectors (`eval/query_vectors.json`), so comparing designs costs no embeddings:
 
-**Chosen design: `w150`.** It is better at k = 1 and k = 3, ties at k = 5, and adds about half as many words to each prompt. The price is multi-passage retrieval: `w400` returns both passages of a multi question more often (`multi_all@5` 0.500 against 0.333). I keep `w150` and accept that trade-off.
+- **hit@k**: at least one expected passage (same source, location matching at a word boundary) is in the top k;
+- **all@k**: every expected passage is in the top k. It differs from hit@k only for the 6 multi questions;
+- **MRR@5**: the mean of 1 / rank of the first expected passage, counting 0 if none is in the top 5.
 
-For a multi question, hit@k counts a hit if *either* expected passage is retrieved, which overstates retrieval for the 6 multi questions. `multi_all@k` counts only those with *every* expected passage in the top k (`eval/retrieval.csv`). It is 0 at k = 1 by construction, since a chunk never spans two sections. At k = 5, `w150` finds both passages for 2 of 6 (q24, q26) and `w400` for 3 of 6 (q21, q22, q24). With `w150` the top 5 misses `PART 3` in q21, `UAS.OPEN.070` in q22, `PART 16` in q23 and `Article 14` in q25.
+| Design | hit@1 | hit@3 | hit@5 | all@5 | MRR@5 | Words added to the prompt (top 5) |
+|---|---|---|---|---|---|---|
+| **`w150`** (150-word chunks) | **0.846** | **1.000** | **1.000** | 0.846 | **0.917** | **633** |
+| `w400` (400-word chunks) | 0.808 | 0.962 | 1.000 | **0.885** | 0.894 | 1,236 |
+| `bm25` (keywords only, `w150` chunks) | 0.423 | 0.654 | 0.692 | 0.577 | 0.535 | 623 |
+| `w150+bm25` (hybrid) | 0.692 | 0.846 | 0.962 | 0.808 | 0.781 | 641 |
 
-## Tools and subagent
+By question kind (`eval/retrieval.csv` has every column for every kind):
+
+| Design | Single (20): hit@1 | Single: MRR@5 | Multi (6): hit@5 | Multi: all@3 | Multi: all@5 |
+|---|---|---|---|---|---|
+| `w150` | 0.850 | 0.925 | 1.000 | 0.167 | 0.333 |
+| `w400` | 0.800 | 0.887 | 1.000 | 0.333 | 0.500 |
+| `bm25` | 0.500 | 0.583 | 0.667 | 0.167 | 0.167 |
+| `w150+bm25` | 0.700 | 0.793 | 1.000 | 0.167 | 0.333 |
+
+**Chosen design: `w150`.** It is better at k = 1 and k = 3, ties at k = 5, ranks the first right passage higher (MRR@5 0.917 against 0.894), and adds about half as many words to each prompt. The price is multi-passage retrieval: `w400` returns both passages of a multi question more often (all@5 0.500 against 0.333 on the multi questions). I keep `w150` and accept that trade-off.
+
+For a multi question, hit@k counts a hit if *either* expected passage is retrieved, which overstates retrieval for those 6 questions; all@k counts a hit only when every expected passage is in the top k. all@1 is 0 for every multi question by construction, since a chunk never spans two sections. At k = 5, `w150` finds both passages for 2 of 6 (q24, q26) and `w400` for 3 of 6 (q21, q22, q24). With `w150` the top 5 misses `PART 3` in q21, `UAS.OPEN.070` in q22, `PART 16` in q23 and `Article 14` in q25.
+
+**Hybrid search, tested and rejected.** As a third design that needs no new embeddings, the same `w150` chunks were ranked with BM25 (k1 = 1.5, b = 0.75, over source, location and text) and that ranking was fused with the dense one by reciprocal rank fusion (k = 60, top 50 of each). The hybrid is worse than dense `w150` on every metric (MRR@5 0.781 against 0.917). BM25 alone finds an expected passage in the top 5 for only 18 of the 26 questions (hit@5 0.692). The likely reason is wording: the questions use the pilot's words ("How far from residential areas must I stay…") and the rules use legal wording; embeddings match meaning, BM25 only matches shared words. Fusing in the weaker ranking pushes right passages down, so dense `w150` stays.
+
+## 6. MCP server
+
+`server.py` loads the committed index and never re-embeds the corpus. Both tools run the code in `index.py`.
 
 **`search(query)`**: "Search the EU drone (UAS) rules: Regulation 2019/947 (how drones may be flown: open/specific/certified categories, A1/A2/A3 subcategories, operator registration, remote pilot competency, operational authorisations, standard scenarios), Regulation 2019/945 (drone classes C0-C6, manufacturer duties, product requirements, remote ID) and EASA's AMC/GM guidance to Part-UAS. Use it for any question about operating, buying or building a drone in the EU. Returns the 5 most relevant passages, each numbered with its source and location (article, UAS point or AMC/GM heading). Cite them as [source, location]."
 
-**`add_document(path)`**: "Add a local document (.pdf, .html or .txt) to the drone-rules index so search can find it. The file is extracted, chunked and embedded with the same pipeline as the corpus. The source name is the file name. If that file is already indexed with identical content nothing happens; if its content changed, the old chunks are replaced. Returns what was done and how many chunks were added."
-
-One search result (q05, third of five passages):
+One search result as the evaluation run received it (q05, third of five passages):
 
 ```text
 [3] Reg 2019/947, UAS.OPEN.040 UAS operations in subcategory A3 (score 0.781)
@@ -81,7 +102,17 @@ in an area where the remote pilot reasonably expects that no uninvolved person w
 industrial or recreational areas; …
 ```
 
-**Subagent** (`.claude/agents/corpus-researcher.md`), limited to `mcp__corpus__search`:
+If the search fails (no API key, network or quota), the tool returns an MCP error that says why, so the agent sees the cause instead of a crashed server.
+
+**`add_document(path)`**: "Add a local document (.pdf, .html or .txt) to the drone-rules index so search can find it. The file is extracted, chunked and embedded with the same pipeline as the corpus. The source name is the file name. If that file is already indexed with identical content nothing happens; if its content changed, the old chunks are replaced. Returns what was done and how many chunks were added."
+
+**Already indexed?** `add_document` imports the pipeline from `index.py` and uses the file name as the source. If chunks with that source already exist and their `file_hash` equals the SHA-256 of the file, nothing happens ("already indexed with the same content"). If the content changed, the old chunks are deleted and the file is re-indexed, so an updated document never sits next to its stale version. New chunks go into the chosen `w150` index only, and only chunks without a saved vector are embedded. The same file under a different name would be indexed twice; the name is the identity. The tests in `tests/test_server.py` cover a missing file, an unsupported type, a re-add with the same content and a re-add with changed content.
+
+## 7. Agents
+
+### Subagent
+
+`.claude/agents/corpus-researcher.md`, limited to `mcp__corpus__search`:
 
 ```text
 You research EU drone rules using only the `search` tool.
@@ -92,10 +123,10 @@ You research EU drone rules using only the `search` tool.
 - Keep it short: a direct answer in a few sentences or bullets.
 ```
 
-**Transcript from Claude Code** (CLI 2.1.330 in headless mode, `claude -p`, run on 23 November 2026 from a clean clone of this repo; the `corpus` server loaded from `.mcp.json`):
+**Transcript from Claude Code** (CLI 2.1.330 in headless mode, run on 23 November 2026 from a clean clone of this repo; the `corpus` server loaded from `.mcp.json`). Passage texts are left out below; `eval/subagent_transcript.txt` has the complete log, nothing shortened.
 
 ```text
-$ claude -p "Use the corpus-researcher subagent to answer this question: Do I need to register a 300 g drone to fly it in the open category?"
+$ claude -p "Use the corpus-researcher subagent to answer this question: Do I need to register a 300 g drone to fly it in the open category?" --allowedTools "Agent,Task,mcp__corpus__search"
   (Claude Code 2.1.330, model claude-opus-5-5; MCP server "corpus" from .mcp.json: connected)
 
 ● Agent(subagent_type="corpus-researcher")
@@ -162,21 +193,9 @@ $ claude -p "Use the corpus-researcher subagent to answer this question: Do I ne
   (2 turns, 28.7 s, $0.49 of Claude usage; the subagent made 4 search calls)
 ```
 
-The subagent made 4 searches, although its instructions allow at most 3. In Claude Code that limit is only an instruction, while `agent.py` enforces it with middleware. The subagent's report cites the regulation for each rule and lists what the corpus does not cover. The main session's closing answer adds two details that are not in the passages ("such as a camera" and "AESA in Spain").
+The subagent made 4 searches, although its instructions allow at most 3. In Claude Code that limit is only an instruction, while `agent.py` enforces it with middleware. The subagent's report cites the regulation for each rule and lists what the corpus does not cover. The main session's closing answer adds details that are not in the passages: "such as a camera", the name "EU Toy Safety Directive" (the passage names only Directive 2009/48/EC, as the subagent pointed out) and "AESA in Spain".
 
-## Adding a document
-
-`add_document` uses the file name as the source. If chunks with that source already exist and their `file_hash` equals the SHA-256 of the file, nothing happens ("already indexed with the same content"). If the content changed, the old chunks are deleted and the file is re-indexed, so an updated document never sits next to its stale version. New chunks go into the chosen `w150` index only, and only chunks without a saved vector are embedded.
-
-**Unanswerable question (q31):** "What services must a U-space service provider offer to drone operators?"
-**Document added:** `eval/extra/reg_2021_664_u-space.html`, Commission Implementing Regulation (EU) 2021/664 on a regulatory framework for the U-space (58 chunks).
-
-- **Before:** "The corpus does not cover this."
-- **After:** the four mandatory services (network identification, geo-awareness, UAS flight authorisation and traffic information), each cited to `[reg_2021_664_u-space.html, Article 3]`, plus Article 7 on providing them in all phases of the operation. The full answer is in `eval/add_document_demo.md`.
-
-These 58 chunks are now part of the committed `w150` index, so q31 would be answerable if the agent were re-run. The evaluation results below use the answer from before the document was added. Re-running the retrieval evaluation with the extra chunks gives the same hit rates.
-
-## Harness and guardrails
+### Harness and guardrails
 
 `agent.py` is a LangChain `create_agent` on `gemini-3.1-flash-lite` (temperature 0). It gets its tools from `server.py` over MCP and uses `AGENTS.md` as the system prompt. The rules are: search before answering (at most 3 searches); answer only from the passages; cite every claim as `[source, location]`; start with "The corpus does not cover this." when the passages don't answer; no national rules; mention the corpus version when dates matter; only add documents when the user asks with a path; be short.
 
@@ -184,9 +203,19 @@ These 58 chunks are now part of the committed `w150` index, so q31 would be answ
 - **Call limits:** at most 6 model calls and 3 `search` calls per agent run. A 4th search is blocked and the agent gets "Tool call limit exceeded" (q23 requested 4; 3 ran). The citation retry is a second run with fresh limits.
 - **Extra guardrail, citation check:** every `[source, location]` in the answer must match a passage that `search` returned in *this* run, with the same source and a location that matches at a word boundary. If any citation fails, the agent is told which ones and gets one retry; if the retry still fails, the answer is replaced by a refusal.
 
-It fired on **10 of 32** questions. All 10 passed after the retry, and none had to be blocked. Example, q25 ("My drone weighs 600 g. Do I need to register, and could it qualify as class C1?"): the first draft cited `[Reg 2019/947, Article 14(5)(a)(i)]` and `[Reg 2019/945, Part 2(1)]`. Those are finer than any location the index stores, so they could not be checked against a returned passage. The retry cited `[Reg 2019/947, Article 14]` and `[Reg 2019/945, PART 2 Requirements for a class C1 Unmanned aircraft system]`, which match. In q04, the first draft used the passage number as the source (`[5, AMC1 UAS.OPEN.30(1)]`).
+It fired on **10 of 32** questions. All 10 passed after the retry, and none had to be replaced by a refusal. Example, q25 ("My drone weighs 600 g. Do I need to register, and could it qualify as class C1?"): the first draft cited `[Reg 2019/947, Article 14(5)(a)(i)]` and `[Reg 2019/945, Part 2(1)]`. Those are finer than any location the index stores, so they could not be checked against a returned passage. The retry cited `[Reg 2019/947, Article 14]` and `[Reg 2019/945, PART 2 Requirements for a class C1 Unmanned aircraft system]`, which match.
 
-## Evaluation
+Why the 10 first drafts failed, from the notes in `eval/answers.jsonl` (q17 had two problems):
+
+| Problem in the first draft | Questions |
+|---|---|
+| Two citations in one bracket, `[A, x; B, y]` | 3 (q01, q05, q17) |
+| The passage number used as the source, `[5, AMC1 UAS.OPEN.30(1)]` | 3 (q04, q14, q21) |
+| A location finer than the stored one, `Article 14(5)(a)(i)` | 2 (q17, q25) |
+| Two locations after one source | 1 (q28) |
+| No citation at all: a refusal that didn't start with the exact phrase | 2 (q29, q31) |
+
+## 8. Evaluation
 
 The agent answered all 32 questions (`eval/answers.jsonl`).
 
@@ -201,35 +230,67 @@ Refusals are graded in code: correct if the question is unanswerable, wrong othe
 - *correct* = 1 if the answer states the same rule as the reference (extra correct detail is fine); 0 if it contradicts the reference, misses the key point, or refuses although the reference gives an answer.
 - *supported* = 1 if every factual claim appears in the retrieved passages; 0 if any number, condition or exception is not in them, even if it is true.
 
-| Outcome | Count |
-|---|---|
-| Correct | 21 |
-| Unsupported | 4 |
-| Wrong | 1 |
-| Correct refusal | 5 |
-| Wrong refusal | 0 |
-| Answered an unanswerable question | 1 |
-| **Total** | **32** |
+### Results
 
-Citations were valid in 100% of answers.
+| Outcome | Single (20) | Multi (6) | Unanswerable (6) | **All (32)** |
+|---|---|---|---|---|
+| Correct | 17 | 4 | – | **21** |
+| Unsupported | 3 | 1 | – | **4** |
+| Wrong | 0 | 1 | – | **1** |
+| Wrong refusal | 0 | 0 | – | **0** |
+| Correct refusal | – | – | 5 | **5** |
+| Answered an unanswerable question | – | – | 1 | **1** |
 
-**Agreement with my own grades:** I graded 20 answers myself (q01–q20, `eval/human_labels.csv`).
+With 32 questions every rate is uncertain, so each comes with a 95% Wilson interval (`eval/summary.json`, `analysis.rates_wilson95`):
 
-| | Agreement with the judge |
-|---|---|
-| *correct* | **100%** (20 / 20) |
-| *supported* | **85%** (17 / 20) |
+| Rate | Value | 95% interval |
+|---|---|---|
+| Handled correctly (correct answers + correct refusals) | 26 / 32 = 0.812 | 0.647–0.911 |
+| Correct, of the 26 answerable | 21 / 26 = 0.808 | 0.621–0.915 |
+| Unsupported, of the 26 answerable | 4 / 26 = 0.154 | 0.061–0.335 |
+| Refused, of the 6 unanswerable | 5 / 6 = 0.833 | 0.436–0.970 |
+| Citations valid | 32 / 32 = 1.000 | 0.893–1.000 |
+
+### Agreement with my grades
+
+I graded 20 answers myself (q01–q20, `eval/human_labels.csv`).
+
+| | Agreement with the judge | Cohen's kappa |
+|---|---|---|
+| *correct* | **100%** (20 / 20) | undefined |
+| *supported* | **85%** (17 / 20) | 0.00 |
 
 All 20 are single-passage questions. The three disagreements are q07, q08 and q10. I graded them *supported*. The judge graded them *unsupported* because of the closing sentence naming the corpus versions, which comes from AGENTS.md rule 6 rather than from a retrieved passage. In my grading I treat that sentence as a disclaimer required by rule 6, not as a factual claim, so it does not make an answer unsupported. I applied this to all 20 answers; the judge applies the rubric literally, but only to 4 of the 25 answers that contain the note.
 
-Three of the four "unsupported" answers (q07, q08, q10) were flagged only for the version sentence that AGENTS.md rule 6 adds, and so was the fourth (q21). I kept rule 6, the judge rubric and the strict refusal check unchanged. The aim of the evaluation is to show how the system behaves, not to raise its score: strict rules that produce both positive and negative cases explain more than rules changed until every case passes.
+Kappa measures agreement beyond chance. For *correct* it is undefined: the judge and I gave all 20 answers a 1, so there is no variation to agree on. For *supported* it is 0.00: I gave all 20 a 1, so 85% is exactly the agreement that chance alone gives when the judge says 1 for 17 of 20. All 20 are single-passage questions the judge marked correct, so these figures cannot show whether the judge catches a wrong answer. The one wrong answer (q26) and the multi and unanswerable questions are in q21–q32, which I have not graded; `eval/grading_sheet.md` lists them without the judge's verdicts.
 
-**Judge limitations:**
-- The judge is the same model as the agent (`gemini-3.1-flash-lite`), so it may favour answers written the way it writes (self-preference bias).
-- It is inconsistent on the version sentence: that sentence is in 25 of the 26 judged answers, and the judge marked only 4 of them unsupported (q07, q08, q10, q21).
-- Its reason for q21 is wrong. It says the answer cites Regulations 2019/947 and 2019/945, which were not retrieved. The answer cites only EASA `AMC1 UAS.OPEN.30(1)`, the two regulations are named only in the version sentence, and Reg 2019/945 `PART 2` and `PART 3` were among the retrieved passages (`PART 3` was retrieved but not cited).
+All four "unsupported" answers (q07, q08, q10 and q21) were flagged only for the version sentence that AGENTS.md rule 6 adds. I kept rule 6, the judge rubric and the strict refusal check unchanged. The aim of the evaluation is to show how the system behaves, not to raise its score: strict rules that produce both positive and negative cases explain more than rules changed until every case passes.
 
-## Failures
+### How far the judge can be trusted
+
+- **Self-preference.** The judge is the same model as the agent (`gemini-3.1-flash-lite`), so it may favour answers written the way it writes.
+- **Inconsistent on the version sentence.** The sentence is in 27 of the 32 answers and in 25 of the 26 judged ones. The judge marked only 4 of those 25 unsupported (q07, q08, q10, q21).
+- **Audit of all 26 verdicts** (`eval/judge_audit.md`): every claim in each answer was checked against the retrieved passages and the reference. Besides the inconsistency above, one reason is factually wrong (q21: it says the answer cites Regulations 2019/947 and 2019/945, which "were not provided"; the answer cites only EASA `AMC1 UAS.OPEN.30(1)`, the two regulations are named only in the version sentence, and Reg 2019/945 `PART 2` and `PART 3` were retrieved). Two verdicts are disputable: q23 is marked correct although it gives the STS-01 ground-speed limit instead of the C5 low-speed limit in the reference, and q15 is marked supported although it glosses "do not comply with Delegated Regulation (EU) 2019/945" as "without a class label". No other verdict conflicts with its evidence.
+- **Stability.** The judge ran once per answer. A second pass, which would show how often a verdict flips at temperature 0, could not be run during the final review because the Gemini API answered 503 ("high demand"); `uv run python evaluate.py --rejudge` runs it.
+
+### Refusals and the version note
+
+- **Refusals.** Five of the six unanswerable questions were refused with the exact phrase (q27–q31). q32 was refused in other words ("The corpus does not specify a set number of days…"), which the prefix check does not count; see Failures. Two answers to answerable questions refuse part of the question inside the answer: q23 says the corpus does not give the C5 low-speed limit, and q26 says the rules don't cover what people taking part must do.
+- **Version note.** Rule 6 asks for a note on the corpus versions when the answer depends on dates or transition periods; the agent added one to 27 of the 32 answers. That note is the whole difference between my *supported* grades and the judge's.
+
+### Adding a document
+
+**Unanswerable question (q31):** "What services must a U-space service provider offer to drone operators?"
+**Document added:** `eval/extra/reg_2021_664_u-space.html`, Commission Implementing Regulation (EU) 2021/664 on a regulatory framework for the U-space (58 chunks).
+
+- **Before:** "The corpus does not cover this."
+- **After:** the four mandatory services (network identification, geo-awareness, UAS flight authorisation and traffic information), each cited to `[reg_2021_664_u-space.html, Article 3]`, plus Article 7 on providing them in all phases of the operation. The full answer is in `eval/add_document_demo.md`.
+
+These 58 chunks are now part of the committed `w150` index, so q31 would be answerable if the agent were re-run. The evaluation results above use the answer from before the document was added. The retrieval evaluation, re-run with the extra chunks in the index, gives the same hit rates.
+
+## 9. Failures and decision
+
+### Failures
 
 | Question | Kind | Outcome | Cause |
 |---|---|---|---|
@@ -250,30 +311,81 @@ Three of the four "unsupported" answers (q07, q08, q10) were flagged only for th
 
 What each failure shows:
 - **q07, q08, q10 and q21:** the core facts are cited to the right passages. The sentence the judge flagged is the closing version note that AGENTS.md rule 6 asks for. By my grading convention that note is not a factual claim, so these four are failures for the judge, not real errors.
-- **q26:** the agent searched once, with its own query, and `UAS.OPEN.050` point (7) (everyone involved in an A2 or A3 operation must be informed of the risks and explicitly agree) was not among the results. The agent then said the rules don't cover that part. With the question text as the query, the `w150` retrieval evaluation does return `UAS.OPEN.050` in the top 5.
+- **q26:** the agent searched once, with its own query, and `UAS.OPEN.050` point (7) (everyone involved in an A2 or A3 operation must be informed of the risks and explicitly agree) was not among the results. The agent then said the rules don't cover that part. With the question text as the query, the `w150` retrieval evaluation does return `UAS.OPEN.050` in the top 5. Searching once is the norm: 29 of the 32 runs made a single search.
 - **q32:** the agent replied "The corpus does not specify a set number of days…" and cited `UAS.SPEC.040`, which says the authority issues the authorisation "without undue delay". The code only counts answers starting "The corpus does not cover" as refusals. I classify it as a bad test question: the corpus does answer it (no fixed number of days, only "without undue delay"), so it should not have been labelled unanswerable.
 
-**What to fix first:** the answers don't define key terms before giving the evidence. In my own grading I noted that q02 should say what the open category is, q03 should define a toy, and q07, q08 and q10 were right but left key concepts undefined. I would fix that first.
+### What to fix first
 
-## Decision
+The answers don't define key terms before giving the evidence. In my own grading I noted that q02 should say what the open category is, q03 should define a toy, and q07, q08 and q10 were right but left key concepts undefined. I would fix that first.
 
-**Cost and latency per question** (32 questions, `eval/answers.jsonl`):
+### Cost and latency
+
+Per question, over the 32 runs in `eval/answers.jsonl` (agent tokens; the judge's tokens were not logged):
 
 | | Mean | Median |
 |---|---|---|
-| Tokens (input + output) | 4,367 | 3,294 |
+| Tokens (input + output) | 4,367 (4,057 + 310) | 3,294 |
 | Seconds | 55.6 | 15.3 |
 
-The mean is pulled up by two outliers, most likely free-tier rate-limit waits: q04 (802 s) and q10 (237 s). The median is the typical case. Tokens are the agent's model tokens; the judge's are not logged. The evaluation run made 37 searches (38 requested, 1 blocked), each one query embedding.
+Three runs took over 100 s: q04 (802 s), q10 (237 s) and q03 (105 s). They are most likely free-tier rate-limit waits, which are not logged, so they cannot be subtracted exactly. Without those three runs the mean is 21.9 s; the median is the typical case. The evaluation run made 37 searches (38 requested, 1 blocked), each one query embedding.
 
-**Would I let users rely on it?** Yes: as a way to find and read the EU rule that applies, not as a replacement for the pilot's judgement. On the 32 questions, 26 were handled correctly (21 correct answers and 5 correct refusals) and every citation pointed to a passage that was actually retrieved. The four "unsupported" answers were flagged only for the version note. The one real error was q26, which left out the consent rule for people taking part in A2; q32 is a test-question problem (see Failures). The safeguard is the pilot. They have the knowledge the assistant lacks to interpret ambiguous terms, and each answer cites the article they can open and check before flying.
+**In money.** The project ran on the free tier, which costs nothing within its daily limits. At the paid-tier prices of the Gemini Developer API ([pricing page](https://ai.google.dev/gemini-api/docs/pricing), checked 23 November 2026: Gemini 3.1 Flash-Lite $0.25 per million input tokens and $1.50 per million output tokens; Gemini Embedding 2 $0.20 per million tokens), the mean question costs $0.001479 in model tokens plus at most $0.0000033 for its query embeddings (counting 2 tokens per word, since their tokens are not logged). At the ECB reference rate of 1.0990 USD per euro (20 November 2026) that is **€0.0013 per question, or €1.35 per 1,000 questions**.
+
+### Decision
+
+**Would I let users rely on it?** Yes: as a way to find and read the EU rule that applies, not as a replacement for the pilot's judgement. On the 32 questions, 26 were handled correctly (21 correct answers and 5 correct refusals; 0.812, 95% interval 0.647–0.911), and every citation pointed to a passage that was actually retrieved. The four "unsupported" answers were flagged only for the version note. The one real error was q26, which left out the consent rule for people taking part in A2; q32 is a test-question problem (see Failures). The safeguard is the pilot. They have the knowledge the assistant lacks to interpret ambiguous terms, and each answer cites the article they can open and check before flying.
+
+## Limitations
+
+- **Small test set.** 26 answerable questions, 6 multi and 6 unanswerable give wide intervals (the refusal rate of 5/6 has a 95% interval of 0.436–0.970). A difference of one or two questions between two designs is within noise.
+- **One author.** I wrote the questions, the reference answers and the 20 grades, and nobody else checked them.
+- **My grades cover only single-passage questions**, all 20 marked correct by the judge, so the agreement figures cannot show whether the judge catches wrong answers.
+- **The judge** is the same model as the agent, is inconsistent on the version sentence (4 of 25), gives one wrong reason (q21), and ran only once per answer.
+- **Refusals are detected by a fixed opening phrase**, which misses a refusal in other words (q32) and partial refusals inside an answer (q23, q26).
+- **Corpus versions.** Regulation 2019/947 as consolidated on 4 April 2022, Regulation 2019/945 as consolidated on 9 August 2020 and EASA's Issue 1 of 2019. Later amendments and guidance issues are not in the corpus, so an answer can be out of date; rule 6 makes the agent say which versions it used.
+- **The committed index includes the U-space document** added for the demo, so re-running the agent today would answer q31, which the test set labels unanswerable.
+- **Latency was measured on the free tier**, where rate-limit waits are part of the time and are not logged; the judge's tokens are not in the cost.
+- **The subagent's 3-search limit** is only an instruction in Claude Code (it made 4 searches); only `agent.py` enforces its limits.
+- **Two word counts were rebuilt from the index** because EUR-Lex returned empty files during the final review.
+
+## Reproducibility
+
+```bash
+uv sync                                    # Python 3.12 and the locked dependencies (uv.lock)
+echo "GEMINI_API_KEY=your-key" > .env      # server.py reads the key from .env, never from the shell
+uv run python main.py index                # embeds nothing: every chunk already has a vector in index/
+uv run python main.py ask "your question"  # one agent run
+uv run python main.py evaluate             # rebuilds every file in eval/ from the cached results, no API calls
+uv run python check.py                     # the course's checker
+uv run pytest                              # offline tests, including the numbers in this report
+uv run ruff check .
+```
+
+Which run produced which numbers:
+
+| Numbers | Produced by | Code |
+|---|---|---|
+| Answers, tokens, seconds, citation-check notes (`eval/answers.jsonl`), judge verdicts (`eval/judge.jsonl`), query vectors | the v1 evaluation run, agent and judge on Gemini | commit `08f7fe1`, 15 November 2026 |
+| Retrieval tables (`eval/retrieval.csv`) | `main.py evaluate` from the saved query vectors and `index/` | the submitted commit, offline |
+| Outcomes, rates and intervals, kappa, refusal and version-note counts, guardrail patterns, cost (`eval/summary.json`, `eval/failures.csv`) | `main.py evaluate` from the cached v1 results and `eval/human_labels.csv` | the submitted commit, offline |
+| My grades and notes (`eval/human_labels.csv`) and failure causes | me | commits `0b00c9a` and `525a3a0` |
+| Judge audit (`eval/judge_audit.md`) | Claude, reading each verdict against its evidence | commit `1651be2` |
+| Subagent transcript (`eval/subagent_transcript.txt`) | Claude Code 2.1.330, `claude -p` | run on commit `be2c828` |
+
+Answers and verdicts are cached, so `main.py evaluate` only calls Gemini for questions that have no cached answer or verdict; delete a line in `eval/answers.jsonl` or `eval/judge.jsonl` to redo it. `uv run python evaluate.py --rejudge` judges every answer a second time into `eval/judge_rerun.jsonl` (26 judge calls), and `EVAL_DIR=<folder> uv run python evaluate.py` writes a complete new run into another folder without touching the v1 results.
 
 ## AI use
 
 AI wrote the code.
 
-Claude (Anthropic) was also used to review the repository, to build a grading page and to walk me through the answers one by one (with neutral summaries of each answer and its passages) while I gave my own grades and failure causes, to make `evaluate.py` keep the hand-filled `cause` column when it re-runs, and to draft the factual parts of this report from the files in `eval/` and `index/`. Claude also turned my notes for the analysis sections (test set, evaluation, failures, decision) into sentences.
+Claude (Anthropic) was also used to review the repository, to build a grading page and to walk me through the answers one by one (with neutral summaries of each answer and its passages) while I gave my own grades and failure causes, to make `evaluate.py` keep the hand-filled `cause` column when it re-runs, and to draft the factual parts of this report from the files in `eval/` and `index/`. Claude also turned my notes for the analysis sections (test set, evaluation, failures, decision) into sentences. At my request it produced the subagent transcript by running the Claude Code CLI on a clean clone of this repo with my Gemini key, and it rewrote the ship decision and the evaluation framing from my earlier notes, so they agree with the use case.
 
-In a final review, Claude also added the `multi_all@k` metric to `evaluate.py`, reusing the saved query vectors. It made `index.py` skip a source it can't download instead of crashing. It re-ran `main.py index` and `main.py evaluate` with no new embeddings or judge calls, and ran `check.py` on a fresh clone, which passed. It corrected facts in this report (word counts, call limits, judge scope and limitations, the q26 and q32 evidence) and built a second blind grading sheet for q21–q32. At my request it produced the subagent transcript by running the Claude Code CLI on a clean clone of this repo with my Gemini key. It also rewrote the ship decision and the evaluation framing from my earlier notes in this chat, so they agree with the use case.
+In a final review pass, Claude:
+- added all@k, MRR@5 and per-kind rows to the retrieval evaluation, and tested BM25 and a BM25+dense hybrid as further designs, all from the saved vectors;
+- added the analysis in `eval/summary.json` (outcomes by kind, Wilson intervals, Cohen's kappa, refusal and version-note counts, why the citation check fired, cost at paid-tier prices), and wrote the paragraphs of this report that present it;
+- audited the 26 judge verdicts (`eval/judge_audit.md`);
+- made `index.py` skip a source it can't download, made `search` errors say why, and added offline tests (`tests/`, run with pytest) and a linter (ruff);
+- built a grading sheet for q21–q32 without the judge's verdicts (`eval/grading_sheet.md`);
+- re-ran `main.py index`, `main.py evaluate` and `check.py` on fresh clones, reordered this report along the brief, added the Limitations and Reproducibility sections, and added `tests/test_report_numbers.py`, which recomputes the numbers in this report from the committed files.
 
-I wrote the test set myself and graded 20 answers myself. I chose the cause of each failure, the decision to keep rule 6 and the strict checks, what to fix first and the ship decision.
+I wrote the test set myself and graded 20 answers myself. I chose the cause of each failure, the decision to keep rule 6 and the strict checks, the `w150` design, what to fix first and the ship decision.
