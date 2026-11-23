@@ -11,9 +11,11 @@ get embedded, so a crash or the daily quota never loses work.
 """
 
 import hashlib
+import math
 import re
 import sys
 import time
+from collections import Counter, defaultdict
 from pathlib import Path
 
 import chromadb
@@ -261,6 +263,61 @@ def retrieve(query: str, design: str = CHOSEN_DESIGN, k: int = 5, query_vec: lis
     res = collection(design).query(query_embeddings=[vec], n_results=k)
     return [{"id": i, "text": d, **m, "score": round(1 - dist, 3)}
             for i, d, m, dist in zip(res["ids"][0], res["documents"][0], res["metadatas"][0], res["distances"][0])]
+
+
+# ---------- hybrid retrieval: BM25 + dense, fused by reciprocal rank ----------
+# Evaluated as a third design in evaluate.py. It reuses the stored vectors and the
+# saved query vectors, so it needs no new embeddings.
+
+_BM25: dict = {}
+
+
+def _tokens(text: str) -> list[str]:
+    return re.findall(r"[a-z0-9]+", text.lower())
+
+
+def _bm25_index(design: str):
+    if design not in _BM25:
+        got = collection(design).get(include=["documents", "metadatas"])
+        docs = [Counter(_tokens(f"{m['source']} {m['location']} {d}"))
+                for d, m in zip(got["documents"], got["metadatas"])]
+        lengths = [sum(d.values()) for d in docs]
+        df = Counter(t for d in docs for t in d)
+        _BM25[design] = (got["ids"], docs, lengths, df, sum(lengths) / len(lengths))
+    return _BM25[design]
+
+
+def bm25_ranking(query: str, design: str, k1: float = 1.5, b: float = 0.75) -> list[str]:
+    """Chunk ids of a design, best first, by Okapi BM25 over source, location and text."""
+    ids, docs, lengths, df, avgdl = _bm25_index(design)
+    n, terms = len(docs), set(_tokens(query))
+
+    def score(i: int) -> float:
+        s = 0.0
+        for t in terms:
+            tf = docs[i].get(t, 0)
+            if tf:
+                idf = math.log(1 + (n - df[t] + 0.5) / (df[t] + 0.5))
+                s += idf * tf * (k1 + 1) / (tf + k1 * (1 - b + b * lengths[i] / avgdl))
+        return s
+
+    scores = [score(i) for i in range(n)]
+    return [ids[i] for i in sorted(range(n), key=lambda i: -scores[i])]
+
+
+def retrieve_hybrid(query: str, design: str = CHOSEN_DESIGN, k: int = 5, query_vec: list[float] | None = None,
+                    pool: int = 50, rrf_k: int = 60) -> list[dict]:
+    """Top-k chunks by reciprocal rank fusion of the dense top-`pool` and the BM25 top-`pool`."""
+    vec = query_vec or embed([query], task="RETRIEVAL_QUERY")[0]
+    dense = collection(design).query(query_embeddings=[vec], n_results=pool)["ids"][0]
+    fused = defaultdict(float)
+    for ranking in (dense, bm25_ranking(query, design)[:pool]):
+        for rank, cid in enumerate(ranking, start=1):
+            fused[cid] += 1 / (rrf_k + rank)
+    top = sorted(fused, key=fused.get, reverse=True)[:k]
+    got = collection(design).get(ids=top, include=["documents", "metadatas"])
+    by_id = {i: (d, m) for i, d, m in zip(got["ids"], got["documents"], got["metadatas"])}
+    return [{"id": i, "text": by_id[i][0], **by_id[i][1], "score": round(fused[i], 4)} for i in top]
 
 
 def main() -> None:

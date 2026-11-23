@@ -1,8 +1,8 @@
 """
 Evaluation (`main.py evaluate`). Writes everything to eval/.
 
-1. Retrieval: hit rate at k = 1/3/5 for each chunk design   -> eval/retrieval.csv
-   (hit@k: any expected passage; multi_all@k: multi questions with every expected passage)
+1. Retrieval: hit@k, all@k (every expected passage) and MRR@5 per design and
+   question kind, for w150, w400 and a w150 BM25+dense hybrid -> eval/retrieval.csv
 2. Agent on every question (cached, so reruns are cheap)    -> eval/answers.jsonl
 3. Code checks: citations valid, refusals right or wrong
 4. LLM judge with a rubric, retrieved text as evidence      -> eval/judge.jsonl
@@ -105,28 +105,40 @@ def query_vectors(questions: list[dict]) -> dict:
     return vecs
 
 
+def retrievers() -> dict:
+    """Design name -> search(question, query_vec). The hybrid reuses the stored w150 vectors."""
+    designs = {d: (lambda q, v, d=d: index.retrieve(q, d, k=max(KS), query_vec=v)) for d in index.DESIGNS}
+    designs["w150+bm25"] = lambda q, v: index.retrieve_hybrid(q, "w150", k=max(KS), query_vec=v)
+    return designs
+
+
 def retrieval(questions: list[dict]) -> list[dict]:
+    """One row per design and question kind (all / single / multi):
+    hit@k = any expected passage in the top k; all@k = every expected passage in the top k;
+    mrr@5 = mean of 1 / rank of the first expected passage (0 if not in the top 5)."""
     answerable = [q for q in questions if q["kind"] != "unanswerable"]
-    multi = [q for q in answerable if q["kind"] == "multi"]
     vecs = query_vectors(answerable)
     rows = []
-    for design in index.DESIGNS:
-        hits_at = {k: 0 for k in KS}  # any expected passage in the top k
-        all_at = {k: 0 for k in KS}   # multi questions: every expected passage in the top k
-        words = 0
+    for design, search in retrievers().items():
+        per_q = []
         for q in answerable:
-            hits = index.retrieve(q["question"], design, k=max(KS), query_vec=vecs[q["question"]])
-            words += sum(len(h["text"].split()) for h in hits)
-            for k in KS:
-                hits_at[k] += any(is_hit(h, expected(q)) for h in hits[:k])
-                if q["kind"] == "multi":
-                    all_at[k] += all(any(is_hit(h, [e]) for h in hits[:k]) for e in expected(q))
-        n = len(answerable)
-        rows.append({"design": design, **{f"hit@{k}": round(hits_at[k] / n, 3) for k in KS},
-                     **{f"multi_all@{k}": round(all_at[k] / max(len(multi), 1), 3) for k in KS},
-                     "avg_words_top5": round(words / n)})
+            hits, exp = search(q["question"], vecs[q["question"]]), expected(q)
+            rank = next((r for r, h in enumerate(hits, start=1) if is_hit(h, exp)), None)
+            per_q.append({"kind": q["kind"], "rank": rank, "words": sum(len(h["text"].split()) for h in hits),
+                          "all": {k: all(any(is_hit(h, [e]) for h in hits[:k]) for e in exp) for k in KS}})
+        for kind in ("all", "single", "multi"):
+            sel = [p for p in per_q if kind == "all" or p["kind"] == kind]
+            n = len(sel)
+            if not n:
+                continue
+            rows.append({"design": design, "questions": kind, "n": n,
+                         **{f"hit@{k}": round(sum(p["rank"] is not None and p["rank"] <= k for p in sel) / n, 3)
+                            for k in KS},
+                         **{f"all@{k}": round(sum(p["all"][k] for p in sel) / n, 3) for k in KS},
+                         "mrr@5": round(sum(1 / p["rank"] for p in sel if p["rank"]) / n, 3),
+                         "avg_words_top5": round(sum(p["words"] for p in sel) / n)})
     with (EVAL / "retrieval.csv").open("w", newline="", encoding="utf-8") as f:
-        w = csv.DictWriter(f, fieldnames=list(rows[0]))
+        w = csv.DictWriter(f, fieldnames=list(rows[0]), lineterminator="\n")
         w.writeheader()
         w.writerows(rows)
     return rows
