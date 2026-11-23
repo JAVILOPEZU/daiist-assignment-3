@@ -271,6 +271,22 @@ def guardrail_patterns(note: str) -> list[str]:
     return sorted(found)
 
 
+def agent_retrieval(questions: list[dict], answers: dict) -> dict:
+    """Did the agent's own searches return the expected passages? (answerable questions)"""
+    rows = []
+    for q in questions:
+        if q["kind"] == "unanswerable":
+            continue
+        got = [{"source": s, "location": loc} for s, loc in answers[q["id"]]["passages"]]
+        found = [any(is_hit(h, [e]) for h in got) for e in expected(q)]
+        rows.append({"id": q["id"], "kind": q["kind"], "any": any(found), "all": all(found)})
+    return {"answerable": len(rows), "any_expected": sum(r["any"] for r in rows),
+            "all_expected": sum(r["all"] for r in rows),
+            "multi_with_all_expected": [r["id"] for r in rows if r["kind"] == "multi" and r["all"]],
+            "missed_an_expected_passage": [r["id"] for r in rows if not r["all"]],
+            "missed_every_expected_passage": [r["id"] for r in rows if not r["any"]]}
+
+
 def analysis(results: list[dict], answers: dict) -> dict:
     """Breakdowns for the report: outcomes by kind, 95% intervals, refusals, the version note,
     guardrail patterns, tokens, latency and cost. Everything comes from the cached run."""
@@ -472,7 +488,7 @@ def main() -> None:
         "avg_seconds": round(sum(r["seconds"] for r in results) / n, 1),
         "judge_vs_me": agreement(results),
         "judge_stability": judge_stability(),
-        "analysis": analysis(results, answers),
+        "analysis": {**analysis(results, answers), "agent_retrieval": agent_retrieval(questions, answers)},
     }
     (EVAL / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
 

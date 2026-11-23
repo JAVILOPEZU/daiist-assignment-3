@@ -80,6 +80,18 @@ def test_guardrail_patterns():
         == ["no citations (refusal without the exact phrase)"]
 
 
+def test_agent_retrieval_counts_any_and_all_expected_passages():
+    qs = [question(id="q1", expected_source="Reg 2019/947", expected_location="UAS.OPEN.020;UAS.OPEN.070", kind="multi"),
+          question(id="q2", expected_source="Reg 2019/945", expected_location="PART 3"),
+          question(id="q3", kind="unanswerable")]
+    answers = {"q1": {"passages": [["Reg 2019/947", "UAS.OPEN.020 UAS operations in subcategory A1"]]},
+               "q2": {"passages": [["Reg 2019/945", "PART 3 Requirements for a class C2"]]},
+               "q3": {"passages": []}}
+    got = evaluate.agent_retrieval(qs, answers)
+    assert (got["answerable"], got["any_expected"], got["all_expected"]) == (2, 2, 1)
+    assert got["multi_with_all_expected"] == [] and got["missed_an_expected_passage"] == ["q1"]
+
+
 def test_split_passages_reads_both_formats_and_drops_repeats():
     text = ("[1] Reg 2019/947, Article 14 (score 0.8)\nfirst text\n\n"
             "[2] Reg 2019/945, PART 2 Requirements (score 0.7)\nsecond text\n\n"
