@@ -14,21 +14,21 @@ A wrong answer can mean an illegal or unsafe flight, a fine or an accident. "I d
 
 | Document | URL | Version / date | Licence | Words |
 |---|---|---|---|---|
-| Commission Implementing Regulation (EU) 2019/947 (operation of unmanned aircraft) | [EUR-Lex CELEX 02019R0947-20220404](https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:02019R0947-20220404) | consolidated 04/04/2022 | EU legal text; reuse free of charge under the Commission reuse policy (Decision 2011/833/EU), source acknowledged | ≈19,100 |
-| Commission Delegated Regulation (EU) 2019/945 (UAS and third-country operators) | [EUR-Lex CELEX 02019R0945-20200809](https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:02019R0945-20200809) | consolidated 09/08/2020 | same as above | ≈20,400 |
-| EASA AMC & GM to Part-UAS, Issue 1 (ED Decision 2019/021/R, Annex II) | [EASA PDF](https://www.easa.europa.eu/sites/default/files/dfu/AMC%20&%20GM%20to%20Part-UAS%20%E2%80%94%20Issue%201.pdf) | October 2019 | © EASA; reproduction authorised provided the source is acknowledged | 16,807 |
-| **Total** | | | | **≈56,300** |
+| Commission Implementing Regulation (EU) 2019/947 (operation of unmanned aircraft) | [EUR-Lex CELEX 02019R0947-20220404](https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:02019R0947-20220404) | consolidated 04/04/2022 | EU legal text; reuse free of charge under the Commission reuse policy (Decision 2011/833/EU), source acknowledged | 19,100 |
+| Commission Delegated Regulation (EU) 2019/945 (UAS and third-country operators) | [EUR-Lex CELEX 02019R0945-20200809](https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:02019R0945-20200809) | consolidated 09/08/2020 | same as above | 20,428 |
+| EASA AMC & GM to Part-UAS, Issue 1 (ED Decision 2019/021/R, Annex II) | [EASA PDF](https://www.easa.europa.eu/sites/default/files/dfu/AMC%20&%20GM%20to%20Part-UAS%20%E2%80%94%20Issue%201.pdf) | Issue 1, 9 October 2019 (61 pages) | © EASA; reproduction authorised provided the source is acknowledged | 16,807 |
+| **Total** | | | | **56,335** |
 
-All three are public, contain no personal data, and are written for exactly this audience. Word counts are after extraction and cleaning; `main.py index` logs them per document. Added later for the add-document demo: Regulation (EU) 2021/664 on U-space (6,150 words), see [Adding a document](#adding-a-document).
+All three are public, contain no personal data, and are written for exactly this audience. Word counts are after extraction and cleaning; `main.py index` logs them per document. The EASA count comes from a fresh extraction. The two regulations' counts are rebuilt from the chunks stored in `index/`, and the 150- and 400-word indexes give the same totals. Added later for the add-document demo: Regulation (EU) 2021/664 on U-space (6,150 words), see [Adding a document](#adding-a-document).
 
 ## Ingestion
 
-`index.py` downloads the three files into `corpus/` and splits each one along its own legal structure before chunking:
+`index.py` downloads the three files into `corpus/` (a source that can't be downloaded is skipped with a warning and its stored vectors are kept) and splits each one along its own legal structure before chunking:
 
 - **EUR-Lex HTML** (both regulations): text is split at each `Article N`, `ANNEX`, `PART`, `CHAPTER`, `SECTION`, `Appendix` heading and at each annex point such as `UAS.OPEN.020 UAS operations in subcategory A1`. Headings like `PART 2` take their title from the next line, so the location reads `PART 2 Requirements for a class C1 Unmanned aircraft system`.
 - **EASA PDF**: text is split at each AMC/GM heading (for example `AMC1 UAS.OPEN.020(1) and (2) …`), and the page number is added to the location. Table-of-contents pages and the repeated header/footer lines (`Annex II to ED Decision 2019/021/R`, `Page x of y`) are dropped.
 - **Cleaning**: EUR-Lex amendment markers (▼M1…) and scripts are removed, words hyphenated across PDF lines are rejoined, and whitespace is normalised.
-- **Chunking**: word windows with 20% overlap, built *inside* each section, so a chunk never mixes two articles.
+- **Chunking**: word windows of 150 or 400 words with 20% overlap (step 120 or 320), built *inside* each section, so a chunk never mixes two articles.
 
 **Extraction problem fixed:** in the EUR-Lex HTML, list labels such as `(a)` or `(1)` sit alone on their own line. A plain line-by-line split left them as orphan fragments, separated from the rule they introduce. The extractor now glues a lone label to the line that follows, so `(a) weather conditions` stays one unit.
 
