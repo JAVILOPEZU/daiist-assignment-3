@@ -326,6 +326,8 @@ def test_agreement_with_my_grades():
 def test_version_note_and_refusals():
     v = ANALYSIS["version_note"]
     says(f"added one to {v['answers']} of the {v['of']} answers")
+    assert evaluate.VERSION_NOTE.search(BY_ID["q05"]["answer"])
+    says("including answers that do not depend on dates, such as q05 (150 m from residential areas in A3)")
     says(f"The sentence is in {v['answers']} of the {v['of']} answers and in {v['judged_with_note']} of the "
          f"{v['judged']} judged ones. The judge marked only {len(v['judged_with_note_unsupported'])} of those "
          f"{v['judged_with_note']} unsupported ({', '.join(v['judged_with_note_unsupported'])})")

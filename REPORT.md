@@ -278,7 +278,7 @@ All four "unsupported" answers (q07, q08, q10 and q21) were flagged only for the
 ### Refusals and the version note
 
 - **Refusals.** Five of the six unanswerable questions were refused with the exact phrase (q27–q31). q32 was refused in other words ("The corpus does not specify a set number of days…"), which the prefix check does not count; see Failures. Two answers to answerable questions refuse part of the question inside the answer: q23 says the corpus does not give the C5 low-speed limit, and q26 says the rules don't cover what people taking part must do.
-- **Version note.** Rule 6 asks for a note on the corpus versions when the answer depends on dates or transition periods; the agent added one to 27 of the 32 answers. That note is the whole difference between my *supported* grades and the judge's.
+- **Version note.** Rule 6 asks for a note on the corpus versions when the answer depends on dates or transition periods; the agent added one to 27 of the 32 answers, including answers that do not depend on dates, such as q05 (150 m from residential areas in A3). That note is the whole difference between my *supported* grades and the judge's.
 
 ### Adding a document
 
