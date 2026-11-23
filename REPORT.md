@@ -58,7 +58,7 @@ The test set has not changed since the first evaluation run (commit `08f7fe1`, 1
 
 ## 5. Retrieval
 
-All metrics are over the 26 answerable questions and use the saved query vectors (`eval/query_vectors.json`), so comparing designs costs no embeddings:
+All metrics are over the 26 answerable questions and use the saved query vectors (`eval/query_vectors.json`), so comparing designs costs no embeddings. Every design searches only the three corpus documents; the 58 U-space chunks added for the demo (see [Adding a document](#adding-a-document)) are left out, because only the `w150` index has them. The metrics:
 
 - **hit@k**: at least one expected passage (same source, location matching at a word boundary) is in the top k;
 - **all@k**: every expected passage is in the top k. It differs from hit@k only for the 6 multi questions;
@@ -66,10 +66,10 @@ All metrics are over the 26 answerable questions and use the saved query vectors
 
 | Design | hit@1 | hit@3 | hit@5 | all@5 | MRR@5 | Words added to the prompt (top 5) |
 |---|---|---|---|---|---|---|
-| **`w150`** (150-word chunks) | **0.846** | **1.000** | **1.000** | 0.846 | **0.917** | **633** |
+| **`w150`** (150-word chunks) | **0.846** | **1.000** | **1.000** | 0.846 | **0.917** | **638** |
 | `w400` (400-word chunks) | 0.808 | 0.962 | 1.000 | **0.885** | 0.894 | 1,236 |
-| `bm25` (keywords only, `w150` chunks) | 0.423 | 0.654 | 0.692 | 0.577 | 0.535 | 623 |
-| `w150+bm25` (hybrid) | 0.692 | 0.846 | 0.962 | 0.808 | 0.781 | 641 |
+| `bm25` (keywords only, `w150` chunks) | 0.462 | 0.654 | 0.731 | 0.615 | 0.562 | 627 |
+| `w150+bm25` (hybrid) | 0.654 | 0.846 | 0.923 | 0.769 | 0.754 | 636 |
 
 By question kind (`eval/retrieval.csv` has every column for every kind):
 
@@ -77,14 +77,14 @@ By question kind (`eval/retrieval.csv` has every column for every kind):
 |---|---|---|---|---|---|
 | `w150` | 0.850 | 0.925 | 1.000 | 0.167 | 0.333 |
 | `w400` | 0.800 | 0.887 | 1.000 | 0.333 | 0.500 |
-| `bm25` | 0.500 | 0.583 | 0.667 | 0.167 | 0.167 |
-| `w150+bm25` | 0.700 | 0.793 | 1.000 | 0.167 | 0.333 |
+| `bm25` | 0.550 | 0.618 | 0.667 | 0.167 | 0.167 |
+| `w150+bm25` | 0.650 | 0.758 | 1.000 | 0.167 | 0.333 |
 
 **Chosen design: `w150`.** It is better at k = 1 and k = 3, ties at k = 5, ranks the first right passage higher (MRR@5 0.917 against 0.894), and adds about half as many words to each prompt. The price is multi-passage retrieval: `w400` returns both passages of a multi question more often (all@5 0.500 against 0.333 on the multi questions). I keep `w150` and accept that trade-off.
 
 For a multi question, hit@k counts a hit if *either* expected passage is retrieved, which overstates retrieval for those 6 questions; all@k counts a hit only when every expected passage is in the top k. all@1 is 0 for every multi question by construction, since a chunk never spans two sections. At k = 5, `w150` finds both passages for 2 of 6 (q24, q26) and `w400` for 3 of 6 (q21, q22, q24). With `w150` the top 5 misses `PART 3` in q21, `UAS.OPEN.070` in q22, `PART 16` in q23 and `Article 14` in q25.
 
-**Hybrid search, tested and rejected.** As a third design that needs no new embeddings, the same `w150` chunks were ranked with BM25 (k1 = 1.5, b = 0.75, over source, location and text) and that ranking was fused with the dense one by reciprocal rank fusion (k = 60, top 50 of each). The hybrid is worse than dense `w150` on every metric (MRR@5 0.781 against 0.917). BM25 alone finds an expected passage in the top 5 for only 18 of the 26 questions (hit@5 0.692). The likely reason is wording: the questions use the pilot's words ("How far from residential areas must I stay…") and the rules use legal wording; embeddings match meaning, BM25 only matches shared words. Fusing in the weaker ranking pushes right passages down, so dense `w150` stays.
+**Hybrid search, tested and rejected.** As a third design that needs no new embeddings, the same `w150` chunks were ranked with BM25 (k1 = 1.5, b = 0.75, over source, location and text) and that ranking was fused with the dense one by reciprocal rank fusion (k = 60, top 50 of each). The hybrid is worse than dense `w150` on every metric (MRR@5 0.754 against 0.917). BM25 alone finds an expected passage in the top 5 for only 19 of the 26 questions (hit@5 0.731). The likely reason is wording: the questions use the pilot's words ("How far from residential areas must I stay…") and the rules use legal wording; embeddings match meaning, BM25 only matches shared words. Fusing in the weaker ranking pushes right passages down, so dense `w150` stays.
 
 ## 6. MCP server
 
@@ -288,7 +288,7 @@ All four "unsupported" answers (q07, q08, q10 and q21) were flagged only for the
 - **Before:** "The corpus does not cover this."
 - **After:** the four mandatory services (network identification, geo-awareness, UAS flight authorisation and traffic information), each cited to `[reg_2021_664_u-space.html, Article 3]`, plus Article 7 on providing them in all phases of the operation. The full answer is in `eval/add_document_demo.md`.
 
-These 58 chunks are now part of the committed `w150` index, so q31 would be answerable if the agent were re-run. The evaluation results above use the answer from before the document was added. The retrieval evaluation, re-run with the extra chunks in the index, gives the same hit rates.
+These 58 chunks are now part of the committed `w150` index, so q31 would be answerable if the agent were re-run. The evaluation results above use the answer from before the document was added. The retrieval evaluation leaves these chunks out; with them included, the dense designs' hit@k, all@k and MRR@5 are the same.
 
 ## 9. Failures and decision
 

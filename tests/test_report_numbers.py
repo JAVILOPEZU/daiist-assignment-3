@@ -177,6 +177,22 @@ def test_which_multi_passages_are_found(index_copy):
 
 # ---------- 6-7. tools, subagent, harness ----------
 
+def test_the_demo_chunks_do_not_change_dense_retrieval(index_copy):
+    says("Every design searches only the three corpus documents")
+    says("with them included, the dense designs' hit@k, all@k and MRR@5 are the same")
+    vecs = json.loads(evaluate.QUERY_VECS.read_text(encoding="utf-8"))
+    for design in index.DESIGNS:
+        for q in (q for q in QUESTIONS if q["kind"] != "unanswerable"):
+            exp, v = evaluate.expected(q), vecs[q["question"]]
+            ranks = []
+            for sources in (evaluate.CORPUS, None):
+                hits = index.retrieve(q["question"], design, k=5, query_vec=v, sources=sources)
+                first = next((r for r, h in enumerate(hits, start=1) if evaluate.is_hit(h, exp)), None)
+                every = [all(any(evaluate.is_hit(h, [e]) for h in hits[:k]) for e in exp) for k in (1, 3, 5)]
+                ranks.append((first, every))
+            assert ranks[0] == ranks[1], (design, q["id"])
+
+
 def test_search_example_and_harness_settings():
     says(next(line for line in BY_ID["q05"]["retrieved_text"].splitlines()
               if line.startswith("[3] Reg 2019/947, UAS.OPEN.040")))
