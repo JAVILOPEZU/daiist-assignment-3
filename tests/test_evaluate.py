@@ -78,3 +78,12 @@ def test_guardrail_patterns():
         == ["two locations after one source"]
     assert evaluate.guardrail_patterns("retried: the answer has no [source, location] citations") \
         == ["no citations (refusal without the exact phrase)"]
+
+
+def test_split_passages_reads_both_formats_and_drops_repeats():
+    text = ("[1] Reg 2019/947, Article 14 (score 0.8)\nfirst text\n\n"
+            "[2] Reg 2019/945, PART 2 Requirements (score 0.7)\nsecond text\n\n"
+            "Passage 1 (score 0.8). Cite as: [Reg 2019/947, Article 14]. Version: v.\nthird text\n\n"
+            "[1] Reg 2019/947, Article 14 (score 0.8)\nfirst text\n\nTool call limit exceeded. Do not call 'search' again.")
+    got = evaluate.split_passages(text)
+    assert [body for _, body in got] == ["first text", "second text", "third text"]
