@@ -275,7 +275,7 @@ All four "unsupported" answers (q07, q08, q10 and q21) were flagged only for the
 - **Self-preference.** The judge is the same model as the agent (`gemini-3.1-flash-lite`), so it may favour answers written the way it writes.
 - **Inconsistent on the version sentence.** The sentence is in 27 of the 32 answers and in 25 of the 26 judged ones. The judge marked only 4 of those 25 unsupported (q07, q08, q10, q21).
 - **Audit of all 26 verdicts** (`eval/judge_audit.md`): every claim in each answer was checked against the retrieved passages and the reference. Besides the inconsistency above, one reason is factually wrong (q21: it says the answer cites Regulations 2019/947 and 2019/945, which "were not provided"; the answer cites only EASA `AMC1 UAS.OPEN.30(1)`, the two regulations are named only in the version sentence, and Reg 2019/945 `PART 2` and `PART 3` were retrieved). Two verdicts are disputable: q23 is marked correct although it gives the STS-01 ground-speed limit instead of the C5 low-speed limit in the reference, and q15 is marked supported although it glosses "do not comply with Delegated Regulation (EU) 2019/945" as "without a class label". No other verdict conflicts with its evidence.
-- **Stability.** The judge ran once per answer. A second pass, which would show how often a verdict flips at temperature 0, could not be run during the final review because the Gemini API answered 503 ("high demand"); `uv run python evaluate.py --rejudge` runs it.
+- **Stability.** A second pass over all 26 judged answers (same model and prompt, temperature 0, eight days after the first; `eval/judge_rerun.jsonl`) changed no verdict: 0 of 26 flipped. The judge is reproducible, so its inconsistency on the version sentence is systematic, not noise: both passes flag the same 4 answers.
 
 ### Refusals and the version note
 
@@ -344,7 +344,7 @@ Three runs took over 100 s: q04 (802 s), q10 (237 s) and q03 (105 s). They are m
 - **Small test set.** 26 answerable questions, 6 multi and 6 unanswerable give wide intervals (the refusal rate of 5/6 has a 95% interval of 0.436–0.970). A difference of one or two questions between two designs is within noise.
 - **One author.** I wrote the questions, the reference answers and the 20 grades, and nobody else checked them.
 - **My grades cover only single-passage questions**, all 20 marked correct by the judge, so the agreement figures cannot show whether the judge catches wrong answers.
-- **The judge** is the same model as the agent, is inconsistent on the version sentence (4 of 25), gives one wrong reason (q21), and ran only once per answer.
+- **The judge** is the same model as the agent, is inconsistent on the version sentence (4 of 25, the same 4 in both passes) and gives one wrong reason (q21).
 - **Refusals are detected by a fixed opening phrase**, which misses a refusal in other words (q32) and partial refusals inside an answer (q23, q26).
 - **Corpus versions.** Regulation 2019/947 as consolidated on 4 April 2022, Regulation 2019/945 as consolidated on 9 August 2020 and EASA's Issue 1 of 2019. Later amendments and guidance issues are not in the corpus, so an answer can be out of date; rule 6 makes the agent say which versions it used.
 - **The committed index includes the U-space document** added for the demo, so re-running the agent today would answer q31, which the test set labels unanswerable.
@@ -373,6 +373,7 @@ Which run produced which numbers:
 | Retrieval tables (`eval/retrieval.csv`) | `main.py evaluate` from the saved query vectors and `index/` | the submitted commit, offline |
 | Outcomes, rates and intervals, kappa, refusal and version-note counts, guardrail patterns, cost (`eval/summary.json`, `eval/failures.csv`) | `main.py evaluate` from the cached v1 results and `eval/human_labels.csv` | the submitted commit, offline |
 | My grades and notes (`eval/human_labels.csv`) and failure causes | me | commits `0b00c9a` and `525a3a0` |
+| Second judge pass (`eval/judge_rerun.jsonl`), `judge_stability` in `eval/summary.json` | `evaluate.py --rejudge`, same rubric and prompt as v1, on 23 November 2026 | commit `2edbfbc` |
 | Judge audit (`eval/judge_audit.md`) | Claude, reading each verdict against its evidence | commit `1651be2` |
 | Subagent transcript (`eval/subagent_transcript.txt`) | Claude Code 2.1.330, `claude -p` | run on commit `be2c828` |
 
@@ -387,7 +388,7 @@ Claude (Anthropic) was also used to review the repository, to build a grading pa
 In a final review pass, Claude:
 - added all@k, MRR@5 and per-kind rows to the retrieval evaluation, and tested BM25 and a BM25+dense hybrid as further designs, all from the saved vectors;
 - added the analysis in `eval/summary.json` (outcomes by kind, Wilson intervals, Cohen's kappa, refusal and version-note counts, why the citation check fired, cost at paid-tier prices), and wrote the paragraphs of this report that present it;
-- audited the 26 judge verdicts (`eval/judge_audit.md`);
+- audited the 26 judge verdicts (`eval/judge_audit.md`) and ran the judge a second time over all of them to measure its stability;
 - made `index.py` skip a source it can't download, made `search` errors say why, and added offline tests (`tests/`, run with pytest) and a linter (ruff);
 - built a grading sheet for q21–q32 without the judge's verdicts (`eval/grading_sheet.md`);
 - re-ran `main.py index`, `main.py evaluate` and `check.py` on fresh clones, reordered this report along the brief, added the Limitations and Reproducibility sections, and added `tests/test_report_numbers.py`, which recomputes the numbers in this report from the committed files.

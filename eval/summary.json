@@ -25,7 +25,10 @@
     ]
   },
   "judge_stability": {
-    "rejudged": 0
+    "rejudged": 26,
+    "flips_correct": [],
+    "flips_supported": [],
+    "flip_rate": 0.0
   },
   "analysis": {
     "outcomes_by_kind": {

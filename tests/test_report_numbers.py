@@ -341,6 +341,20 @@ def test_version_note_and_refusals():
     says("Five of the six unanswerable questions were refused with the exact phrase (q27–q31)")
 
 
+def test_judge_stability():
+    stab = SUMMARY["judge_stability"]
+    assert stab == evaluate.judge_stability()
+    again = evaluate.read_jsonl(EVAL / "judge_rerun.jsonl")
+    assert len(again) == stab["rejudged"] == 26
+    flipped = len(set(stab["flips_correct"]) | set(stab["flips_supported"]))
+    says(f"A second pass over all {stab['rejudged']} judged answers")
+    says(f"changed no verdict: {flipped} of {stab['rejudged']} flipped" if flipped == 0
+         else f"{flipped} of {stab['rejudged']} flipped")
+    unsupported = sorted(i for i, v in again.items() if v["supported"] == 0)
+    assert unsupported == ANALYSIS["version_note"]["judged_with_note_unsupported"]
+    says("both passes flag the same 4 answers")
+
+
 def test_judge_audit_facts():
     q21 = BY_ID["q21"]
     assert {s for s, _ in map(tuple, q21["citations"])} == {"EASA AMC-GM Part-UAS"}
