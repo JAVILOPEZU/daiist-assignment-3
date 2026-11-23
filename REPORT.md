@@ -150,8 +150,15 @@ Refusals are graded in code: correct if the question is unanswerable, wrong othe
 
 Citations were valid in 100% of answers.
 
-**Agreement with my own grades:**
-> **TO WRITE (Javier):** filled in after I grade 20+ answers in `eval/human_labels.csv` (agreement on *correct* and *supported*, and where I disagreed with the judge).
+**Agreement with my own grades:** I graded 20 answers myself (q01–q20, `eval/human_labels.csv`).
+
+| | Agreement with the judge |
+|---|---|
+| *correct* | **100%** (20 / 20) |
+| *supported* | **85%** (17 / 20) |
+
+The three disagreements are q07, q08 and q10. I graded them *supported*. The judge graded them *unsupported* because of the closing sentence naming the corpus versions, which comes from AGENTS.md rule 6 rather than from a retrieved passage.
+> **TO WRITE (Javier):** one or two sentences on why I disagree with the judge there, and what that says about trusting the judge.
 
 > **TO WRITE (Javier):** my reading of these results, including that 3 of the 4 "unsupported" answers (q07, q08, q10) were flagged only for the version sentence added by AGENTS.md rule 6, and the 4th (q21) mainly for it too. I chose to keep rule 6 and the judge rubric unchanged; explain why.
 
@@ -159,14 +166,27 @@ Citations were valid in 100% of answers.
 
 | Question | Kind | Outcome | Cause |
 |---|---|---|---|
-| q07 | single | unsupported | <!-- TO WRITE --> |
-| q08 | single | unsupported | <!-- TO WRITE --> |
-| q10 | single | unsupported | <!-- TO WRITE --> |
-| q21 | multi | unsupported | <!-- TO WRITE --> |
-| q26 | multi | wrong | <!-- TO WRITE --> |
-| q32 | unanswerable | answered unanswerable | <!-- TO WRITE --> |
+| q07 | single | unsupported | unsupported claim |
+| q08 | single | unsupported | unsupported claim |
+| q10 | single | unsupported | unsupported claim |
+| q21 | multi | unsupported | unsupported claim |
+| q26 | multi | wrong | retrieval miss |
+| q32 | unanswerable | answered unanswerable | bad test question |
 
-> **TO WRITE (Javier):** counts by cause (retrieval miss / wrong answer from the right passage / unsupported claim / wrong refusal / bad test question) and what to fix first. Causes are picked in the grading page and copied into `eval/failures.csv`.
+| Cause | Count |
+|---|---|
+| Unsupported claim | 4 |
+| Retrieval miss | 1 |
+| Bad test question | 1 |
+| Wrong answer from the right passage | 0 |
+| Wrong refusal | 0 |
+
+What each failure shows:
+- **q07, q08, q10 and q21:** the core facts are cited to the right passages. The sentence the judge flagged is the closing version note that AGENTS.md rule 6 asks for.
+- **q26:** the agent searched once. `UAS.OPEN.050` (people taking part must be informed and agree) was never retrieved, and the agent said the rules don't cover that part.
+- **q32:** the agent replied "The corpus does not specify a set number of days…", but the code only counts answers starting "The corpus does not cover" as refusals.
+
+> **TO WRITE (Javier):** what to fix first, and why.
 
 ## Decision
 

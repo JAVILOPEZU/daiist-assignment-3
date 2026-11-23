@@ -13,6 +13,8 @@
   "avg_tokens": 4367,
   "avg_seconds": 55.6,
   "judge_vs_me": {
-    "graded_by_me": 0
+    "graded_by_me": 20,
+    "agree_correct": 1.0,
+    "agree_supported": 0.85
   }
 }
