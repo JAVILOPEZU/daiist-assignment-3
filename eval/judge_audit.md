@@ -17,7 +17,7 @@ No other verdict conflicts with its evidence. q26 (correct 0) is the only answer
 
 ## v2 run
 
-The same check on the six outcomes that changed in v2 (`eval/v2/judge.jsonl`; the other 20 judged answers keep the verdicts they had in v1, correct and supported):
+The same check on the six outcomes that changed in v2: five judge verdicts (`eval/v2/judge.jsonl`) and one code check. The other 21 judged answers keep the verdicts they had in v1, correct and supported.
 
 | Question | v1 → v2 | Finding |
 |---|---|---|
