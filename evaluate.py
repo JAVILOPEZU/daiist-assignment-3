@@ -14,6 +14,7 @@ Totals go to eval/summary.json; failed questions to eval/failures.csv.
 import asyncio
 import csv
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -24,11 +25,14 @@ import agent
 import index
 
 ROOT = Path(__file__).resolve().parent
-EVAL = ROOT / "eval"
-QUESTIONS = EVAL / "questions.csv"
-QUERY_VECS = EVAL / "query_vectors.json"
+DATA = ROOT / "eval"                              # test set and saved query vectors, shared by every run
+EVAL = ROOT / os.environ.get("EVAL_DIR", "eval")  # run outputs; EVAL_DIR=eval/v2 for the v2 experiment
+PRIMARY = EVAL.resolve() == DATA.resolve()        # the v1 run that my labels and the demo refer to
+QUESTIONS = DATA / "questions.csv"
+QUERY_VECS = DATA / "query_vectors.json"
 ANSWERS = EVAL / "answers.jsonl"
 JUDGE = EVAL / "judge.jsonl"
+JUDGE_RERUN = EVAL / "judge_rerun.jsonl"          # second, independent judge pass (`--rejudge`)
 KS = (1, 3, 5)
 
 # Before/after demo: an unanswerable question and a file that answers it.
@@ -225,13 +229,52 @@ def outcome(r: dict) -> str:
 
 # ---------- 5. agreement ----------
 
+def kappa(pairs: list[tuple[int, int]]) -> float | None:
+    """Cohen's kappa for 0/1 pairs; None when chance agreement is 1 (no variance), where it is undefined."""
+    n = len(pairs)
+    observed = sum(a == b for a, b in pairs) / n
+    p_a, p_b = sum(a for a, _ in pairs) / n, sum(b for _, b in pairs) / n
+    chance = p_a * p_b + (1 - p_a) * (1 - p_b)
+    return None if chance == 1 else round((observed - chance) / (1 - chance), 3)
+
+
 def agreement(results: list[dict]) -> dict:
-    human = {h["id"]: h for h in read_csv(EVAL / "human_labels.csv")}
+    """Judge (or code) verdicts vs my grades, for however many rows human_labels.csv has.
+    Rows without a 0/1 in both columns are skipped."""
+    labelled = lambda h: all(str(h.get(f, "")).strip() in ("0", "1") for f in ("correct", "supported"))
+    human = {h["id"]: h for h in read_csv(EVAL / "human_labels.csv") if labelled(h)}
     pairs = [(r, human[r["id"]]) for r in results if r["id"] in human]
     if not pairs:
         return {"graded_by_me": 0}
-    agree = lambda f: round(sum(int(h[f]) == r[f] for r, h in pairs) / len(pairs), 3)
-    return {"graded_by_me": len(pairs), "agree_correct": agree("correct"), "agree_supported": agree("supported")}
+    out = {"graded_by_me": len(pairs)}
+    for f in ("correct", "supported"):
+        both = [(int(h[f]), r[f]) for r, h in pairs]
+        out[f"agree_{f}"] = round(sum(a == b for a, b in both) / len(both), 3)
+        out[f"kappa_{f}"] = kappa(both)
+    out["disagreements"] = sorted(r["id"] for r, h in pairs
+                                  if int(h["correct"]) != r["correct"] or int(h["supported"]) != r["supported"])
+    return out
+
+
+def rejudge(questions: list[dict], answers: dict) -> None:
+    """Judge every judged answer a second time, cached in judge_rerun.jsonl. Opt-in, it spends quota."""
+    first, again = read_jsonl(JUDGE), read_jsonl(JUDGE_RERUN)
+    for q in questions:
+        if q["id"] in first and q["id"] not in again:
+            print(f"  re-judging {q['id']}", file=sys.stderr)
+            again[q["id"]] = judge(q, answers[q["id"]])
+            append_jsonl(JUDGE_RERUN, again[q["id"]])
+
+
+def judge_stability() -> dict:
+    """How often the second judge pass disagrees with the first."""
+    first, again = read_jsonl(JUDGE), read_jsonl(JUDGE_RERUN)
+    both = [i for i in first if i in again]
+    if not both:
+        return {"rejudged": 0}
+    flips = {f: sorted(i for i in both if first[i][f] != again[i][f]) for f in ("correct", "supported")}
+    return {"rejudged": len(both), "flips_correct": flips["correct"], "flips_supported": flips["supported"],
+            "flip_rate": round(len(set(flips["correct"]) | set(flips["supported"])) / len(both), 3)}
 
 
 # ---------- 6. add-document demo ----------
@@ -256,6 +299,7 @@ def main() -> None:
     questions = read_csv(QUESTIONS)
     if not questions:
         raise SystemExit("eval/questions.csv has no questions yet.")
+    EVAL.mkdir(parents=True, exist_ok=True)
 
     print("Retrieval (hit rate):")
     for row in retrieval(questions):
@@ -264,6 +308,8 @@ def main() -> None:
     print("\nAnswering every question with the agent...")
     answers = answer_all(questions)
     results = grade_all(questions, answers)
+    if "--rejudge" in sys.argv:
+        rejudge(questions, answers)
 
     for r in results:
         r["outcome"] = outcome(r)
@@ -278,6 +324,7 @@ def main() -> None:
         "avg_tokens": round(sum(r["tokens"] for r in results) / n),
         "avg_seconds": round(sum(r["seconds"] for r in results) / n, 1),
         "judge_vs_me": agreement(results),
+        "judge_stability": judge_stability(),
     }
     (EVAL / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
 
@@ -285,12 +332,14 @@ def main() -> None:
     # `cause` is filled in by hand; keep what is already there when this reruns
     causes = {r["id"]: r.get("cause", "") for r in read_csv(EVAL / "failures.csv")}
     with (EVAL / "failures.csv").open("w", newline="", encoding="utf-8") as f:
-        w = csv.DictWriter(f, fieldnames=["id", "kind", "outcome", "retrieved_expected", "reason", "cause"])
+        w = csv.DictWriter(f, fieldnames=["id", "kind", "outcome", "retrieved_expected", "reason", "cause"],
+                           lineterminator="\n")
         w.writeheader()
         for r in failed:
             w.writerow({**{k: r.get(k, "") for k in w.fieldnames}, "cause": causes.get(r["id"], "")})
 
-    add_document_demo(questions, answers)
+    if PRIMARY:  # the demo belongs to the v1 run
+        add_document_demo(questions, answers)
     print(json.dumps(summary, indent=2))
 
 

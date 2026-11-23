@@ -15,6 +15,16 @@
   "judge_vs_me": {
     "graded_by_me": 20,
     "agree_correct": 1.0,
-    "agree_supported": 0.85
+    "kappa_correct": null,
+    "agree_supported": 0.85,
+    "kappa_supported": 0.0,
+    "disagreements": [
+      "q07",
+      "q08",
+      "q10"
+    ]
+  },
+  "judge_stability": {
+    "rejudged": 0
   }
 }
