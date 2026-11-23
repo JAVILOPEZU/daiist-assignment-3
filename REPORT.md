@@ -1,8 +1,8 @@
 # Assignment 3 Report
 
 - **Name**: Javier López-Usero Fernández
-- **Student ID**: <!-- TO WRITE (Javier) -->
-- **Group**: <!-- TO WRITE (Javier): BBADBA 5A | BBADBA 5B | PPLEDBA 5A -->
+- **Student ID**: 18633
+- **Group**: BBADBA 5B
 
 > Draft note: every number below comes from the files in `eval/` and `index/`. Sections marked **TO WRITE (Javier)** need my own analysis or decisions. Delete these notes before submitting.
 
@@ -11,8 +11,6 @@
 Drone pilots and operators in the EU ask what the EU rules allow before they fly, buy or register a drone: height and distance limits, which subcategory (A1/A2/A3) and class (C0–C6) applies, registration, pilot competency and authorisations. They act on the answer directly, by flying, buying a drone or registering.
 
 A wrong answer can mean an illegal or unsafe flight, a fine or an accident. "I don't know" only costs the pilot a call to the national aviation authority. So the assistant must refuse rather than guess, and every claim must be traceable to an article the pilot can check.
-
-> **TO WRITE (Javier):** check this matches how I'd describe it; one sentence on why I picked this use case.
 
 ## Corpus
 
@@ -35,7 +33,6 @@ All three are public, contain no personal data, and are written for exactly this
 - **Chunking**: word windows with 20% overlap, built *inside* each section, so a chunk never mixes two articles.
 
 **Extraction problem fixed:** in the EUR-Lex HTML, list labels such as `(a)` or `(1)` sit alone on their own line. A plain line-by-line split left them as orphan fragments, separated from the rule they introduce. The extractor now glues a lone label to the line that follows, so `(a) weather conditions` stays one unit.
-> **TO WRITE (Javier):** confirm this is the one I want to describe, or swap in another (TOC pages, amendment markers, hyphenation).
 
 **Known leftovers:** a few EASA headings keep PDF spacing artefacts (for example `GM1 UAS.SPEC.1 00 The u se of certified equipment`). The A2 guidance headings come out of the PDF as `AMC1 UAS.OPEN.30(1)` rather than `030`. They are kept as extracted, so citations match the stored locations.
 
@@ -69,7 +66,6 @@ Hit rate over the 26 answerable questions (a hit means an expected source and lo
 **Chosen design: `w150`.** It is better at k = 1 and k = 3, ties at k = 5, and adds about half as many words to each prompt.
 
 For a multi question, the hit counts if *either* expected passage is retrieved. q23 (second passage `PART 16` never retrieved) and q26 (`UAS.OPEN.050` never retrieved) therefore count as hits.
-> **TO WRITE (Javier):** one or two sentences on the choice and on this limitation of the metric.
 
 ## Tools and subagent
 
