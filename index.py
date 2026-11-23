@@ -343,7 +343,8 @@ def main() -> None:
             chunks = chunk_file(path, src["source"], src["title"], design)
             words = sum(len(s["text"].split()) for s in extract(path))
             log(f"{src['source']}: {words} words, {len(chunks)} chunks ({design})")
-            embed_and_store(chunks, design)
+            if not embed_and_store(chunks, design):
+                log(f"  {design}: every chunk already has a saved vector, nothing embedded")
     for design in DESIGNS:
         log(f"{design}: {collection(design).count()} chunks in index/")
 

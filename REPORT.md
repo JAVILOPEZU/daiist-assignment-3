@@ -92,7 +92,7 @@ For a multi question, hit@k counts a hit if *either* expected passage is retriev
 
 **`search(query)`**: "Search the EU drone (UAS) rules: Regulation 2019/947 (how drones may be flown: open/specific/certified categories, A1/A2/A3 subcategories, operator registration, remote pilot competency, operational authorisations, standard scenarios), Regulation 2019/945 (drone classes C0-C6, manufacturer duties, product requirements, remote ID) and EASA's AMC/GM guidance to Part-UAS. Use it for any question about operating, buying or building a drone in the EU. Returns the 5 most relevant passages, each numbered with its source and location (article, UAS point or AMC/GM heading). Cite them as [source, location]."
 
-One search result as the evaluation run received it (q05, third of five passages):
+One search result from the evaluation run (q05, third of five passages; the text is shortened with "…"):
 
 ```text
 [3] Reg 2019/947, UAS.OPEN.040 UAS operations in subcategory A3 (score 0.781)
@@ -347,13 +347,14 @@ Three runs took over 100 s: q04 (802 s), q10 (237 s) and q03 (105 s). They are m
 - **Latency was measured on the free tier**, where rate-limit waits are part of the time and are not logged; the judge's tokens are not in the cost.
 - **The subagent's 3-search limit** is only an instruction in Claude Code (it made 4 searches); only `agent.py` enforces its limits.
 - **Two word counts were rebuilt from the index** because EUR-Lex returned empty files during the final review.
+- **Re-indexing a changed source.** `main.py index` embeds chunks it has not stored yet but does not delete old ones, so if a source's text changed, its old and new chunks would sit side by side. `add_document` replaces them; `main.py index` does not.
 
 ## Reproducibility
 
 ```bash
 uv sync                                    # Python 3.12 and the locked dependencies (uv.lock)
 echo "GEMINI_API_KEY=your-key" > .env      # server.py reads the key from .env, never from the shell
-uv run python main.py index                # embeds nothing: every chunk already has a vector in index/
+uv run python main.py index                # embeds only chunks without a saved vector: none, if the sources are unchanged
 uv run python main.py ask "your question"  # one agent run
 uv run python main.py evaluate             # rebuilds every file in eval/ from the cached results, no API calls
 uv run python check.py                     # the course's checker
