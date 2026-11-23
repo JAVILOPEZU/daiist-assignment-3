@@ -92,8 +92,11 @@ You research EU drone rules using only the `search` tool.
 - Keep it short: a direct answer in a few sentences or bullets.
 ```
 
-**Transcript from Claude Code:**
-> **TO WRITE (Javier):** paste the transcript here (steps in my notes: open the repo in Claude Code, check `/mcp` shows `corpus`, ask "Use the corpus-researcher subagent: do I need to register a 300 g drone?", copy the exchange).
+**Transcript from Claude Code** (subagent `corpus-researcher`, run from the repo folder):
+
+```text
+[paste the exported Claude Code conversation here]
+```
 
 ## Adding a document
 
