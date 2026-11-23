@@ -44,18 +44,21 @@ SOURCES = [
         "title": "Commission Implementing Regulation (EU) 2019/947 on the rules and procedures for the operation of unmanned aircraft (consolidated 04/04/2022)",
         "url": "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:02019R0947-20220404",
         "file": "c947_20220404.html",
+        "version": "consolidated text of 4 April 2022",
     },
     {
         "source": "Reg 2019/945",
         "title": "Commission Delegated Regulation (EU) 2019/945 on unmanned aircraft systems and third-country operators (consolidated 09/08/2020)",
         "url": "https://eur-lex.europa.eu/legal-content/EN/TXT/HTML/?uri=CELEX:02019R0945-20200809",
         "file": "c945_20200809.html",
+        "version": "consolidated text of 9 August 2020",
     },
     {
         "source": "EASA AMC-GM Part-UAS",
         "title": "EASA Acceptable Means of Compliance and Guidance Material to Part-UAS, Issue 1 (ED Decision 2019/021/R, Annex II)",
         "url": "https://www.easa.europa.eu/sites/default/files/dfu/AMC%20&%20GM%20to%20Part-UAS%20%E2%80%94%20Issue%201.pdf",
         "file": "easa_amc_gm_part_uas.pdf",
+        "version": "Issue 1 of 9 October 2019",
     },
 ]
 

@@ -13,6 +13,7 @@ from mcp.server.mcpserver import MCPServer
 import index
 
 mcp = MCPServer("corpus", log_level="WARNING")
+VERSIONS = {s["source"]: s["version"] for s in index.SOURCES}
 
 
 @mcp.tool()
@@ -24,14 +25,15 @@ def search(query: str) -> str:
     remote ID) and EASA's AMC/GM guidance to Part-UAS.
 
     Use it for any question about operating, buying or building a drone in the EU.
-    Returns the 5 most relevant passages, each numbered with its source and location
-    (article, UAS point or AMC/GM heading). Cite them as [source, location].
+    Returns the 5 most relevant passages. Each one starts with the exact citation to copy,
+    [source, location] (article, UAS point or AMC/GM heading), and its document's version.
     """
     hits = index.retrieve(query)
     if not hits:
         return "No passages found."
     return "\n\n".join(
-        f"[{n}] {h['source']}, {h['location']} (score {h['score']})\n{h['text']}"
+        f"Passage {n} (score {h['score']}). Cite as: [{h['source']}, {h['location']}]. "
+        f"Version: {VERSIONS.get(h['source'], 'added with add_document')}.\n{h['text']}"
         for n, h in enumerate(hits, start=1)
     )
 

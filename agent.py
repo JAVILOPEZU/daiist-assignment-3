@@ -34,8 +34,26 @@ ROOT = Path(__file__).resolve().parent
 MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.1-flash-lite")  # 2.5-flash free tier is only 20 requests/day
 REFUSAL = "The corpus does not cover this."
 REFUSED_PREFIX = "The corpus does not cover"  # also catches "...does not cover the specific fines"
-CITATION = re.compile(r"\[([^\[\]]+?), ([^\[\]]+?)\]")
-PASSAGE_HEADER = re.compile(r"^\[\d+\] (.+?), (.+?) \(score [\d.\-]+\)$", re.M)
+BRACKET = re.compile(r"\[([^\[\]]+)\]")
+PASSAGE_HEADER = re.compile(  # what search returns: v1 "[1] source, location (score s)",
+    r"^(?:\[\d+\] (.+?), (.+?) \(score [\d.\-]+\)$"  # v2 "Passage 1 (score s). Cite as: [source, location]."
+    r"|Passage \d+ \(score [\d.\-]+\)\. Cite as: \[(.+?), (.+?)\]\.)", re.M)
+
+
+def citations_in(answer: str) -> list[tuple[str, str]]:
+    """Every [source, location] in the answer; one bracket may hold several, separated by ';'."""
+    out = []
+    for inside in BRACKET.findall(answer):
+        for part in inside.split(";"):
+            if ", " in part:
+                source, location = part.split(", ", 1)
+                out.append((source.strip(), location.strip()))
+    return out
+
+
+def passages_in(text: str) -> list[tuple[str, str]]:
+    """(source, location) of every passage in a search result, in either output format."""
+    return [(m[0] or m[2], m[1] or m[3]) for m in PASSAGE_HEADER.findall(text)]
 
 
 def ask_user(name: str, args: dict) -> bool:
@@ -61,7 +79,7 @@ def check_citations(answer: str, passages: list[tuple[str, str]]) -> list[str]:
     """Problems with the answer's citations; empty list means it passes."""
     if answer.strip().startswith(REFUSED_PREFIX):
         return []
-    cited = CITATION.findall(answer)
+    cited = citations_in(answer)
     if not cited:
         return ["the answer has no [source, location] citations"]
     bad = [f"[{s}, {l}]" for s, l in cited
@@ -105,7 +123,7 @@ async def run(question: str, approve=ask_user) -> dict:
         guardrail = "passed"
         for attempt in range(2):
             messages = (await agent.ainvoke({"messages": messages}))["messages"]
-            passages = [m for t in messages if isinstance(t, ToolMessage) for m in PASSAGE_HEADER.findall(text_of(t))]
+            passages = [p for t in messages if isinstance(t, ToolMessage) for p in passages_in(text_of(t))]
             answer = text_of(messages[-1]) if isinstance(messages[-1], AIMessage) else ""
             problems = check_citations(answer, passages)
             if not problems:
@@ -124,10 +142,12 @@ async def run(question: str, approve=ask_user) -> dict:
     return {
         "question": question,
         "answer": answer,
-        "citations": CITATION.findall(answer),
+        "citations": citations_in(answer),
         "passages": passages,
         "retrieved_text": "\n\n".join(text_of(m) for m in messages if isinstance(m, ToolMessage)),
         "tool_calls": [(c["name"], c["args"]) for m in messages if isinstance(m, AIMessage) for c in m.tool_calls],
+        "searches_blocked": sum(text_of(m).startswith("Tool call limit exceeded")
+                                for m in messages if isinstance(m, ToolMessage)),
         "guardrail": guardrail,
         "input_tokens": sum(u.get("input_tokens", 0) for u in usage),
         "output_tokens": sum(u.get("output_tokens", 0) for u in usage),
