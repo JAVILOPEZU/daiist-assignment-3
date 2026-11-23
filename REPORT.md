@@ -61,7 +61,7 @@ Hit rate over the 26 answerable questions (a hit means an expected source and lo
 | **`w150`** | **0.846** | **1.000** | **1.000** | 0.000 | 0.167 | 0.333 | **633** |
 | `w400` | 0.808 | 0.962 | 1.000 | 0.000 | 0.333 | 0.500 | 1,236 |
 
-**Chosen design: `w150`.** It is better at k = 1 and k = 3, ties at k = 5, and adds about half as many words to each prompt.
+**Chosen design: `w150`.** It is better at k = 1 and k = 3, ties at k = 5, and adds about half as many words to each prompt. The price is multi-passage retrieval: `w400` returns both passages of a multi question more often (`multi_all@5` 0.500 against 0.333). I keep `w150` and accept that trade-off.
 
 For a multi question, hit@k counts a hit if *either* expected passage is retrieved, which overstates retrieval for the 6 multi questions. `multi_all@k` counts only those with *every* expected passage in the top k (`eval/retrieval.csv`). It is 0 at k = 1 by construction, since a chunk never spans two sections. At k = 5, `w150` finds both passages for 2 of 6 (q24, q26) and `w400` for 3 of 6 (q21, q22, q24). With `w150` the top 5 misses `PART 3` in q21, `UAS.OPEN.070` in q22, `PART 16` in q23 and `Article 14` in q25.
 
@@ -220,7 +220,7 @@ Citations were valid in 100% of answers.
 | *correct* | **100%** (20 / 20) |
 | *supported* | **85%** (17 / 20) |
 
-All 20 are single-passage questions. The three disagreements are q07, q08 and q10. I graded them *supported*. The judge graded them *unsupported* because of the closing sentence naming the corpus versions, which comes from AGENTS.md rule 6 rather than from a retrieved passage.
+All 20 are single-passage questions. The three disagreements are q07, q08 and q10. I graded them *supported*. The judge graded them *unsupported* because of the closing sentence naming the corpus versions, which comes from AGENTS.md rule 6 rather than from a retrieved passage. In my grading I treat that sentence as a disclaimer required by rule 6, not as a factual claim, so it does not make an answer unsupported. I applied this to all 20 answers; the judge applies the rubric literally, but only to 4 of the 25 answers that contain the note.
 
 Three of the four "unsupported" answers (q07, q08, q10) were flagged only for the version sentence that AGENTS.md rule 6 adds, and so was the fourth (q21). I kept rule 6, the judge rubric and the strict refusal check unchanged. This project aims at explainability rather than accuracy, and strict rules that produce both positive and negative cases explain the system better than rules modified until every case is positive.
 
@@ -249,9 +249,9 @@ Three of the four "unsupported" answers (q07, q08, q10) were flagged only for th
 | Wrong refusal | 0 |
 
 What each failure shows:
-- **q07, q08, q10 and q21:** the core facts are cited to the right passages. The sentence the judge flagged is the closing version note that AGENTS.md rule 6 asks for.
+- **q07, q08, q10 and q21:** the core facts are cited to the right passages. The sentence the judge flagged is the closing version note that AGENTS.md rule 6 asks for. By my grading convention that note is not a factual claim, so these four are failures for the judge, not real errors.
 - **q26:** the agent searched once, with its own query, and `UAS.OPEN.050` point (7) (everyone involved in an A2 or A3 operation must be informed of the risks and explicitly agree) was not among the results. The agent then said the rules don't cover that part. With the question text as the query, the `w150` retrieval evaluation does return `UAS.OPEN.050` in the top 5.
-- **q32:** the agent replied "The corpus does not specify a set number of days…" and cited `UAS.SPEC.040`, which says the authority issues the authorisation "without undue delay". The code only counts answers starting "The corpus does not cover" as refusals.
+- **q32:** the agent replied "The corpus does not specify a set number of days…" and cited `UAS.SPEC.040`, which says the authority issues the authorisation "without undue delay". The code only counts answers starting "The corpus does not cover" as refusals. I classify it as a bad test question: the corpus does answer it (no fixed number of days, only "without undue delay"), so it should not have been labelled unanswerable.
 
 **What to fix first:** the answers don't define key terms before giving the evidence. In my own grading I noted that q02 should say what the open category is and q03 should define a toy. I would fix that first.
 
