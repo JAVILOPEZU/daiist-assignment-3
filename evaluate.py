@@ -2,6 +2,7 @@
 Evaluation (`main.py evaluate`). Writes everything to eval/.
 
 1. Retrieval: hit rate at k = 1/3/5 for each chunk design   -> eval/retrieval.csv
+   (hit@k: any expected passage; multi_all@k: multi questions with every expected passage)
 2. Agent on every question (cached, so reruns are cheap)    -> eval/answers.jsonl
 3. Code checks: citations valid, refusals right or wrong
 4. LLM judge with a rubric, retrieved text as evidence      -> eval/judge.jsonl
@@ -106,18 +107,23 @@ def query_vectors(questions: list[dict]) -> dict:
 
 def retrieval(questions: list[dict]) -> list[dict]:
     answerable = [q for q in questions if q["kind"] != "unanswerable"]
+    multi = [q for q in answerable if q["kind"] == "multi"]
     vecs = query_vectors(answerable)
     rows = []
     for design in index.DESIGNS:
-        hits_at = {k: 0 for k in KS}
+        hits_at = {k: 0 for k in KS}  # any expected passage in the top k
+        all_at = {k: 0 for k in KS}   # multi questions: every expected passage in the top k
         words = 0
         for q in answerable:
             hits = index.retrieve(q["question"], design, k=max(KS), query_vec=vecs[q["question"]])
             words += sum(len(h["text"].split()) for h in hits)
             for k in KS:
                 hits_at[k] += any(is_hit(h, expected(q)) for h in hits[:k])
+                if q["kind"] == "multi":
+                    all_at[k] += all(any(is_hit(h, [e]) for h in hits[:k]) for e in expected(q))
         n = len(answerable)
         rows.append({"design": design, **{f"hit@{k}": round(hits_at[k] / n, 3) for k in KS},
+                     **{f"multi_all@{k}": round(all_at[k] / max(len(multi), 1), 3) for k in KS},
                      "avg_words_top5": round(words / n)})
     with (EVAL / "retrieval.csv").open("w", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=list(rows[0]))
