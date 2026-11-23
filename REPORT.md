@@ -112,7 +112,7 @@ These 58 chunks are now part of the committed `w150` index, so q31 would be answ
 `agent.py` is a LangChain `create_agent` on `gemini-3.1-flash-lite` (temperature 0). It gets its tools from `server.py` over MCP and uses `AGENTS.md` as the system prompt. The rules are: search before answering (at most 3 searches); answer only from the passages; cite every claim as `[source, location]`; start with "The corpus does not cover this." when the passages don't answer; no national rules; mention the corpus version when dates matter; only add documents when the user asks with a path; be short.
 
 - **Approval step:** a `wrap_tool_call` middleware intercepts every `add_document` call and asks `Allow? [y/N]` in the terminal. With no terminal (evaluation, `check.py`) the answer is no, and the agent receives "The user did not approve adding this document."
-- **Call limits:** at most 6 model calls and 3 `search` calls per question.
+- **Call limits:** at most 6 model calls and 3 `search` calls per agent run. A 4th search is blocked and the agent gets "Tool call limit exceeded" (q23 requested 4; 3 ran). The citation retry is a second run with fresh limits.
 - **Extra guardrail, citation check:** every `[source, location]` in the answer must match a passage that `search` returned in *this* run, with the same source and a location that matches at a word boundary. If any citation fails, the agent is told which ones and gets one retry; if the retry still fails, the answer is replaced by a refusal.
 
 It fired on **10 of 32** questions. All 10 passed after the retry, and none had to be blocked. Example, q25 ("My drone weighs 600 g. Do I need to register, and could it qualify as class C1?"): the first draft cited `[Reg 2019/947, Article 14(5)(a)(i)]` and `[Reg 2019/945, Part 2(1)]`. Those are finer than any location the index stores, so they could not be checked against a returned passage. The retry cited `[Reg 2019/947, Article 14]` and `[Reg 2019/945, PART 2 Requirements for a class C1 Unmanned aircraft system]`, which match. In q04, the first draft used the passage number as the source (`[5, AMC1 UAS.OPEN.30(1)]`).
@@ -128,7 +128,7 @@ The agent answered all 32 questions (`eval/answers.jsonl`).
 
 Refusals are graded in code: correct if the question is unanswerable, wrong otherwise.
 
-**LLM judge** (same Gemini model, temperature 0, JSON output). It is used for every answer that is not a refusal. It sees the question, the reference answer, the retrieved passages and the answer, and grades two things:
+**LLM judge** (same Gemini model, temperature 0, JSON output). It grades the 26 answers to answerable questions that are not refusals. It sees the question, the reference answer, the retrieved passages and the answer, and grades two things:
 - *correct* = 1 if the answer states the same rule as the reference (extra correct detail is fine); 0 if it contradicts the reference, misses the key point, or refuses although the reference gives an answer.
 - *supported* = 1 if every factual claim appears in the retrieved passages; 0 if any number, condition or exception is not in them, even if it is true.
 
@@ -151,9 +151,14 @@ Citations were valid in 100% of answers.
 | *correct* | **100%** (20 / 20) |
 | *supported* | **85%** (17 / 20) |
 
-The three disagreements are q07, q08 and q10. I graded them *supported*. The judge graded them *unsupported* because of the closing sentence naming the corpus versions, which comes from AGENTS.md rule 6 rather than from a retrieved passage.
+All 20 are single-passage questions. The three disagreements are q07, q08 and q10. I graded them *supported*. The judge graded them *unsupported* because of the closing sentence naming the corpus versions, which comes from AGENTS.md rule 6 rather than from a retrieved passage.
 
-Three of the four "unsupported" answers (q07, q08, q10) were flagged only for the version sentence that AGENTS.md rule 6 adds, and the fourth (q21) mainly for it. I kept rule 6, the judge rubric and the strict refusal check unchanged. This project aims at explainability rather than accuracy, and strict rules that produce both positive and negative cases explain the system better than rules modified until every case is positive.
+Three of the four "unsupported" answers (q07, q08, q10) were flagged only for the version sentence that AGENTS.md rule 6 adds, and so was the fourth (q21). I kept rule 6, the judge rubric and the strict refusal check unchanged. This project aims at explainability rather than accuracy, and strict rules that produce both positive and negative cases explain the system better than rules modified until every case is positive.
+
+**Judge limitations:**
+- The judge is the same model as the agent (`gemini-3.1-flash-lite`), so it may favour answers written the way it writes (self-preference bias).
+- It is inconsistent on the version sentence: that sentence is in 25 of the 26 judged answers, and the judge marked only 4 of them unsupported (q07, q08, q10, q21).
+- Its reason for q21 is wrong. It says the answer cites Regulations 2019/947 and 2019/945, which were not retrieved. The answer cites only EASA `AMC1 UAS.OPEN.30(1)`, the two regulations are named only in the version sentence, and Reg 2019/945 `PART 2` and `PART 3` were among the retrieved passages (`PART 3` was retrieved but not cited).
 
 ## Failures
 
@@ -176,8 +181,8 @@ Three of the four "unsupported" answers (q07, q08, q10) were flagged only for th
 
 What each failure shows:
 - **q07, q08, q10 and q21:** the core facts are cited to the right passages. The sentence the judge flagged is the closing version note that AGENTS.md rule 6 asks for.
-- **q26:** the agent searched once. `UAS.OPEN.050` (people taking part must be informed and agree) was never retrieved, and the agent said the rules don't cover that part.
-- **q32:** the agent replied "The corpus does not specify a set number of days…", but the code only counts answers starting "The corpus does not cover" as refusals.
+- **q26:** the agent searched once, with its own query, and `UAS.OPEN.050` point (7) (everyone involved in an A2 or A3 operation must be informed of the risks and explicitly agree) was not among the results. The agent then said the rules don't cover that part. With the question text as the query, the `w150` retrieval evaluation does return `UAS.OPEN.050` in the top 5.
+- **q32:** the agent replied "The corpus does not specify a set number of days…" and cited `UAS.SPEC.040`, which says the authority issues the authorisation "without undue delay". The code only counts answers starting "The corpus does not cover" as refusals.
 
 **What to fix first:** the answers don't define key terms before giving the evidence. In my own grading I noted that q02 should say what the open category is and q03 should define a toy. I would fix that first.
 
@@ -190,7 +195,7 @@ What each failure shows:
 | Tokens (input + output) | 4,367 | 3,294 |
 | Seconds | 55.6 | 15.3 |
 
-The mean latency is inflated by free-tier rate-limit waits: q04 took 802 s and q10 took 237 s. The median is the typical case.
+The mean is pulled up by two outliers, most likely free-tier rate-limit waits: q04 (802 s) and q10 (237 s). The median is the typical case. Tokens are the agent's model tokens; the judge's are not logged. The evaluation run made 37 searches (38 requested, 1 blocked), each one query embedding.
 
 **Would I let users rely on it?** Yes, I would let pilots rely on it. They have the knowledge to cover the gap the assistant can't: interpreting ambiguous terms. That knowledge is the safeguard.
 
