@@ -85,8 +85,8 @@ def test_bm25_ranks_documents_with_the_query_terms_first(monkeypatch):
                      {"source": "Reg 2019/945", "location": "PART 1"})}
 
     class FakeCollection:
-        def get(self, ids=None, include=()):
-            ids = ids or list(rows)
+        def get(self, ids=None, where=None, include=()):
+            ids = ids or [i for i in rows if not where or rows[i][1]["source"] in where["source"]["$in"]]
             return {"ids": ids, "documents": [rows[i][0] for i in ids], "metadatas": [rows[i][1] for i in ids]}
 
     monkeypatch.setattr(index, "collection", lambda design: FakeCollection())
@@ -95,3 +95,5 @@ def test_bm25_ranks_documents_with_the_query_terms_first(monkeypatch):
     assert index.bm25_ranking("What is the maximum take-off mass?", "test")[0] == "mass"
     top = index.retrieve_bm25("What is the maximum take-off mass?", "test", k=1)
     assert [(h["source"], h["location"]) for h in top] == [("Reg 2019/945", "PART 1")]
+    # restricted to some sources, the other documents are never ranked
+    assert index.bm25_ranking("What is the maximum take-off mass?", "test", sources=["Reg 2019/947"]) == ["light"]

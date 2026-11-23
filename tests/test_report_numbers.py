@@ -164,7 +164,7 @@ def test_which_multi_passages_are_found(index_copy):
     for design in ("w150", "w400"):
         found[design] = []
         for q in multi:
-            hits = index.retrieve(q["question"], design, k=5, query_vec=vecs[q["question"]])
+            hits = index.retrieve(q["question"], design, k=5, query_vec=vecs[q["question"]], sources=evaluate.CORPUS)
             gone = [loc for src, loc in evaluate.expected(q) if not any(evaluate.is_hit(h, [(src, loc)]) for h in hits)]
             if not gone:
                 found[design].append(q["id"])
@@ -356,7 +356,7 @@ def test_q26_and_q32_evidence(index_copy):
     assert searches(q26) == 1 and not any(loc.startswith("UAS.OPEN.050") for _, loc in map(tuple, q26["passages"]))
     vecs = json.loads(evaluate.QUERY_VECS.read_text(encoding="utf-8"))
     question = next(q["question"] for q in QUESTIONS if q["id"] == "q26")
-    hits = index.retrieve(question, "w150", k=5, query_vec=vecs[question])
+    hits = index.retrieve(question, "w150", k=5, query_vec=vecs[question], sources=evaluate.CORPUS)
     assert any(h["location"].startswith("UAS.OPEN.050") for h in hits)
     singles = sum(searches(a) == 1 for a in ANSWERS)
     says(f"{singles} of the {len(ANSWERS)} runs made a single search")

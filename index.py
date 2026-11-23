@@ -260,10 +260,12 @@ def loc_match(wanted: str, location: str) -> bool:
     return l.startswith(w) and (len(l) == len(w) or not l[len(w)].isalnum())
 
 
-def retrieve(query: str, design: str = CHOSEN_DESIGN, k: int = 5, query_vec: list[float] | None = None) -> list[dict]:
-    """Top-k chunks for a query. Pass query_vec to reuse an embedding across designs."""
+def retrieve(query: str, design: str = CHOSEN_DESIGN, k: int = 5, query_vec: list[float] | None = None,
+             sources: list[str] | None = None) -> list[dict]:
+    """Top-k chunks for a query. Pass query_vec to reuse an embedding across designs,
+    and sources to search only those documents (the evaluation leaves out added ones)."""
     vec = query_vec or embed([query], task="RETRIEVAL_QUERY")[0]
-    res = collection(design).query(query_embeddings=[vec], n_results=k)
+    res = collection(design).query(query_embeddings=[vec], n_results=k, where=_only(sources))
     return [{"id": i, "text": d, **m, "score": round(1 - dist, 3)}
             for i, d, m, dist in zip(res["ids"][0], res["documents"][0], res["metadatas"][0], res["distances"][0])]
 
@@ -275,24 +277,30 @@ def retrieve(query: str, design: str = CHOSEN_DESIGN, k: int = 5, query_vec: lis
 _BM25: dict = {}
 
 
+def _only(sources: list[str] | None) -> dict | None:
+    return {"source": {"$in": list(sources)}} if sources else None
+
+
 def _tokens(text: str) -> list[str]:
     return re.findall(r"[a-z0-9]+", text.lower())
 
 
-def _bm25_index(design: str):
-    if design not in _BM25:
-        got = collection(design).get(include=["documents", "metadatas"])
+def _bm25_index(design: str, sources: list[str] | None = None):
+    key = (design, tuple(sources or ()))
+    if key not in _BM25:
+        got = collection(design).get(where=_only(sources), include=["documents", "metadatas"])
         docs = [Counter(_tokens(f"{m['source']} {m['location']} {d}"))
                 for d, m in zip(got["documents"], got["metadatas"])]
         lengths = [sum(d.values()) for d in docs]
         df = Counter(t for d in docs for t in d)
-        _BM25[design] = (got["ids"], docs, lengths, df, sum(lengths) / len(lengths))
-    return _BM25[design]
+        _BM25[key] = (got["ids"], docs, lengths, df, sum(lengths) / len(lengths))
+    return _BM25[key]
 
 
-def bm25_ranking(query: str, design: str, k1: float = 1.5, b: float = 0.75) -> list[str]:
+def bm25_ranking(query: str, design: str, k1: float = 1.5, b: float = 0.75,
+                 sources: list[str] | None = None) -> list[str]:
     """Chunk ids of a design, best first, by Okapi BM25 over source, location and text."""
-    ids, docs, lengths, df, avgdl = _bm25_index(design)
+    ids, docs, lengths, df, avgdl = _bm25_index(design, sources)
     n, terms = len(docs), set(_tokens(query))
 
     def score(i: int) -> float:
@@ -313,20 +321,20 @@ def _chunks_by_id(design: str, ids: list[str]) -> dict:
     return {i: (d, m) for i, d, m in zip(got["ids"], got["documents"], got["metadatas"])}
 
 
-def retrieve_bm25(query: str, design: str = CHOSEN_DESIGN, k: int = 5) -> list[dict]:
+def retrieve_bm25(query: str, design: str = CHOSEN_DESIGN, k: int = 5, sources: list[str] | None = None) -> list[dict]:
     """Top-k chunks by BM25 alone (no embeddings). Evaluated to explain how the hybrid behaves."""
-    ranking = bm25_ranking(query, design)[:k]
+    ranking = bm25_ranking(query, design, sources=sources)[:k]
     by_id = _chunks_by_id(design, ranking)
     return [{"id": i, "text": by_id[i][0], **by_id[i][1], "score": None} for i in ranking]
 
 
 def retrieve_hybrid(query: str, design: str = CHOSEN_DESIGN, k: int = 5, query_vec: list[float] | None = None,
-                    pool: int = 50, rrf_k: int = 60) -> list[dict]:
+                    pool: int = 50, rrf_k: int = 60, sources: list[str] | None = None) -> list[dict]:
     """Top-k chunks by reciprocal rank fusion of the dense top-`pool` and the BM25 top-`pool`."""
     vec = query_vec or embed([query], task="RETRIEVAL_QUERY")[0]
-    dense = collection(design).query(query_embeddings=[vec], n_results=pool)["ids"][0]
+    dense = collection(design).query(query_embeddings=[vec], n_results=pool, where=_only(sources))["ids"][0]
     fused = defaultdict(float)
-    for ranking in (dense, bm25_ranking(query, design)[:pool]):
+    for ranking in (dense, bm25_ranking(query, design, sources=sources)[:pool]):
         for rank, cid in enumerate(ranking, start=1):
             fused[cid] += 1 / (rrf_k + rank)
     top = sorted(fused, key=fused.get, reverse=True)[:k]

@@ -124,11 +124,16 @@ def query_vectors(questions: list[dict]) -> dict:
     return vecs
 
 
+CORPUS = [s["source"] for s in index.SOURCES]  # what the test set was written for; added documents are left out
+
+
 def retrievers() -> dict:
-    """Design name -> search(question, query_vec). BM25 needs no vectors; the hybrid reuses the stored w150 ones."""
-    designs = {d: (lambda q, v, d=d: index.retrieve(q, d, k=max(KS), query_vec=v)) for d in index.DESIGNS}
-    designs["bm25"] = lambda q, v: index.retrieve_bm25(q, "w150", k=max(KS))
-    designs["w150+bm25"] = lambda q, v: index.retrieve_hybrid(q, "w150", k=max(KS), query_vec=v)
+    """Design name -> search(question, query_vec), over the corpus documents only, so every design
+    searches the same text. BM25 needs no vectors; the hybrid reuses the stored w150 ones."""
+    designs = {d: (lambda q, v, d=d: index.retrieve(q, d, k=max(KS), query_vec=v, sources=CORPUS))
+               for d in index.DESIGNS}
+    designs["bm25"] = lambda q, v: index.retrieve_bm25(q, "w150", k=max(KS), sources=CORPUS)
+    designs["w150+bm25"] = lambda q, v: index.retrieve_hybrid(q, "w150", k=max(KS), query_vec=v, sources=CORPUS)
     return designs
 
 
