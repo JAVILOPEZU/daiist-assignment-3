@@ -56,14 +56,14 @@ I wrote the 32 questions myself, working from a summary of the most important re
 
 Hit rate over the 26 answerable questions (a hit means an expected source and location appears among the top k):
 
-| Design | hit@1 | hit@3 | hit@5 | Words added to the prompt (top 5) |
-|---|---|---|---|---|
-| **`w150`** | **0.846** | **1.000** | **1.000** | **633** |
-| `w400` | 0.808 | 0.962 | 1.000 | 1,236 |
+| Design | hit@1 | hit@3 | hit@5 | multi_all@1 | multi_all@3 | multi_all@5 | Words added to the prompt (top 5) |
+|---|---|---|---|---|---|---|---|
+| **`w150`** | **0.846** | **1.000** | **1.000** | 0.000 | 0.167 | 0.333 | **633** |
+| `w400` | 0.808 | 0.962 | 1.000 | 0.000 | 0.333 | 0.500 | 1,236 |
 
 **Chosen design: `w150`.** It is better at k = 1 and k = 3, ties at k = 5, and adds about half as many words to each prompt.
 
-For a multi question, the hit counts if *either* expected passage is retrieved. q23 (second passage `PART 16` never retrieved) and q26 (`UAS.OPEN.050` never retrieved) therefore count as hits.
+For a multi question, hit@k counts a hit if *either* expected passage is retrieved, which overstates retrieval for the 6 multi questions. `multi_all@k` counts only those with *every* expected passage in the top k (`eval/retrieval.csv`). It is 0 at k = 1 by construction, since a chunk never spans two sections. At k = 5, `w150` finds both passages for 2 of 6 (q24, q26) and `w400` for 3 of 6 (q21, q22, q24). With `w150` the top 5 misses `PART 3` in q21, `UAS.OPEN.070` in q22, `PART 16` in q23 and `Article 14` in q25.
 
 ## Tools and subagent
 
