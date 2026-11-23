@@ -34,7 +34,7 @@ All three are public, contain no personal data, and are written for exactly this
 
 **Known leftovers:** a few EASA headings keep PDF spacing artefacts (for example `GM1 UAS.SPEC.1 00 The u se of certified equipment`). The A2 guidance headings come out of the PDF as `AMC1 UAS.OPEN.30(1)` rather than `030`. They are kept as extracted, so citations match the stored locations.
 
-**Chunk metadata:** `source` (for example `Reg 2019/947`), `title`, `location` (article / UAS point / AMC-GM heading + page), `chunk` index and `file_hash` (SHA-256 of the file, used by `add_document`). The embedded text is `source | location` followed by the chunk, so headings help retrieval. Embeddings: `gemini-embedding-2`, 768 dimensions, cosine distance, ChromaDB in `index/chroma` (12 MB). Vectors are saved batch by batch, and only chunks without a saved vector are embedded.
+**Chunk metadata:** `source` (for example `Reg 2019/947`), `title`, `location` (article / UAS point / AMC-GM heading + page), `chunk` index and `file_hash` (SHA-256 of the file, used by `add_document`). The embedded text is `source | location` followed by the chunk, so headings help retrieval. Embeddings: `gemini-embedding-2`, 768 dimensions, cosine distance, ChromaDB in `index/chroma` (13.0 MB, as `check.py` measures it; limit 90 MB). Vectors are saved batch by batch, and only chunks without a saved vector are embedded.
 
 | Design | Reg 2019/947 | Reg 2019/945 | EASA AMC/GM | Total |
 |---|---|---|---|---|
