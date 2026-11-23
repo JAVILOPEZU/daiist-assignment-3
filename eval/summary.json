@@ -188,6 +188,25 @@
       "eur_per_question": 0.001348,
       "eur_per_1000_questions": 1.35,
       "usd_per_eur": 1.099
+    },
+    "agent_retrieval": {
+      "answerable": 26,
+      "any_expected": 25,
+      "all_expected": 22,
+      "multi_with_all_expected": [
+        "q22",
+        "q24",
+        "q25"
+      ],
+      "missed_an_expected_passage": [
+        "q04",
+        "q21",
+        "q23",
+        "q26"
+      ],
+      "missed_every_expected_passage": [
+        "q04"
+      ]
     }
   }
 }

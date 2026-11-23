@@ -262,6 +262,21 @@ def test_outcomes_by_kind():
         says(f"| {label} | {cells} | {total[outcome]} |")
 
 
+def test_retrieval_inside_the_agent_runs():
+    r = ANALYSIS["agent_retrieval"]
+    assert r == evaluate.agent_retrieval(QUESTIONS, BY_ID)
+    says(f"at least one expected passage was retrieved for {r['any_expected']} of the {r['answerable']} answerable "
+         f"questions, and every expected passage for {r['all_expected']}")
+    assert r["missed_every_expected_passage"] == ["q04"]
+    assert {(s, loc.split(" UAS operations")[0]) for s, loc in map(tuple, BY_ID["q04"]["citations"])} == {
+        ("EASA AMC-GM Part-UAS", "AMC1 UAS.OPEN.30(1)"), ("EASA AMC-GM Part-UAS", "GM1 UAS.OPEN.30(1)")}
+    says("q04 retrieved none of its expected passages and answered from the EASA guidance on the same rule")
+    multi_missed = [i for i in r["missed_an_expected_passage"] if i != "q04"]
+    says(f"{', '.join(multi_missed[:-1])} and {multi_missed[-1]} each missed one of their two passages, so only "
+         f"{len(r['multi_with_all_expected'])} of the 6 multi questions ({', '.join(r['multi_with_all_expected'])}) "
+         "had both")
+
+
 def test_rates_and_intervals():
     labels = {"handled_correctly": "Handled correctly (correct answers + correct refusals)",
               "correct_of_answerable": "Correct, of the 26 answerable",

@@ -241,6 +241,8 @@ Refusals are graded in code: correct if the question is unanswerable, wrong othe
 | Correct refusal | – | – | 5 | **5** |
 | Answered an unanswerable question | – | – | 1 | **1** |
 
+**Retrieval inside the agent runs** (the *retrieved expected* check, on the agent's own search queries): at least one expected passage was retrieved for 25 of the 26 answerable questions, and every expected passage for 22. q04 retrieved none of its expected passages and answered from the EASA guidance on the same rule (`AMC1` and `GM1 UAS.OPEN.30(1)`). q21, q23 and q26 each missed one of their two passages, so only 3 of the 6 multi questions (q22, q24, q25) had both.
+
 With 32 questions every rate is uncertain, so each comes with a 95% Wilson interval (`eval/summary.json`, `analysis.rates_wilson95`):
 
 | Rate | Value | 95% interval |
