@@ -326,7 +326,9 @@ What each failure shows:
 
 ### What to fix first
 
-The answers don't define key terms before giving the evidence. In my own grading I noted that q02 should say what the open category is, q03 should define a toy, and q07, q08 and q10 were right but left key concepts undefined. I would fix that first.
+1. **The test set.** I would add harder, more complex questions (several rules at once, conditions and exceptions) to push the system to its limits and find the limitations it would have in real use. 32 questions, most of them answered correctly, don't show where it breaks.
+2. **Key term definitions.** The answers don't define key terms before giving the evidence (my notes on q02, q03, q07, q08 and q10). I would build a glossary of ambiguous terms, such as "open category", "toy" or "uninvolved person", so the agent detects them and gives their definition, and the pilot can interpret the rule.
+3. **A more trustworthy evaluation.** I graded 20 answers, all single-passage questions. I would grade the rest thoroughly and ask a professional, such as a drone instructor or an aviation lawyer, to grade more answers. Time constraints prevented this here.
 
 ### v2: testing fixes for the failures in the table
 
@@ -356,7 +358,7 @@ Six questions changed, all from a failure to a pass, and none the other way:
 - q26 now names the consent rule: its single search, worded slightly differently ("…operator ensure people taking part" instead of "…operator requirements for people taking part"), returned `UAS.OPEN.050`. The multi-part rule did not make the agent search more (29 of the 32 runs still made one search), so this fix came from the query wording, not from the rule.
 - q32 now starts with "The corpus does not cover", so the code counts it as a correct refusal. The content is the same ("without undue delay"), so by my reading it is still a bad test question.
 
-What v2 does not show: the judge is still the same model, it is a single run on the same 32 questions, and its seconds are not comparable with v1, because the Gemini API was overloaded during the v2 run (median 45.4 s, inflated by retry waits). v2 also does not do my fix-first (defining key terms), which remains to be done.
+What v2 does not show: the judge is still the same model, it is a single run on the same 32 questions, and its seconds are not comparable with v1, because the Gemini API was overloaded during the v2 run (median 45.4 s, inflated by retry waits). v2 also does none of the three fixes above, which remain to be done.
 
 By the rule I set before running it (keep v2 only if it improves with no regression and `check.py` passes), v2 is the shipped configuration: `check.py --evaluate` passed on a fresh clone. The tables before this subsection stay the v1 results, which my grades refer to.
 
