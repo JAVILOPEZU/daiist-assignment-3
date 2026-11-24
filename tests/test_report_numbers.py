@@ -153,8 +153,8 @@ def test_retrieval_prose():
     assert (params["k1"].default, params["b"].default) == (1.5, 0.75)
     params = inspect.signature(index.retrieve_hybrid).parameters
     assert (params["rrf_k"].default, params["pool"].default) == (60, 50)
-    says("BM25 (k1 = 1.5, b = 0.75")
-    says("reciprocal rank fusion (k = 60, top 50 of each)")
+    says("BM25 with k1 = 1.5 and b = 0.75")
+    says("reciprocal rank fusion, with k = 60, over the top 50 of each")
 
 
 def test_which_multi_passages_are_found(index_copy):
