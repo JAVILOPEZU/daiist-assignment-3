@@ -438,3 +438,5 @@ In a final review pass, Claude:
 - re-ran `main.py index`, `main.py evaluate` and `check.py` on fresh clones, reordered this report along the brief, added the Limitations and Reproducibility sections, and added `tests/test_report_numbers.py`, which recomputes the numbers in this report from the committed files.
 
 I wrote the test set myself and graded 20 answers myself. I chose the cause of each failure, the decision to keep rule 6 and the strict checks, the `w150` design, what to fix first and the ship decision.
+
+I reviewed the analysis Claude added in the final review pass and had the hybrid-search paragraph rewritten in plainer words.
